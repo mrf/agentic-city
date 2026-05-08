@@ -91,9 +91,12 @@ export function BottomStrip(): JSX.Element {
       <Hint keys={['R']} label="roads" />
       <Hint keys={['N']} label="labels" />
       <Hint keys={['M']} label="minimap" />
+      <Hint keys={['C']} label="contrast" />
       <span style={S.sep}>·</span>
       <Hint keys={['W', 'A', 'S', 'D']} label="pan" />
       <Hint keys={['+', '−']} label="zoom" />
+      <span style={S.sep}>·</span>
+      <Hint keys={['?']} label="shortcuts" />
 
       <div style={S.spacer} />
 

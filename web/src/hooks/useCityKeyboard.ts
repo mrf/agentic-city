@@ -111,10 +111,13 @@ export function useCityKeyboard(
   const toggleRoads = useUiStore((s) => s.toggleRoads);
   const toggleLabels = useUiStore((s) => s.toggleLabels);
   const toggleMinimap = useUiStore((s) => s.toggleMinimap);
+  const toggleShortcutOverlay = useUiStore((s) => s.toggleShortcutOverlay);
+  const toggleHighContrast = useUiStore((s) => s.toggleHighContrast);
+  const showShortcutOverlay = useUiStore((s) => s.showShortcutOverlay);
 
   // Ref holds latest reactive state so the keydown handler stays stable
-  const stateRef = useRef({ buildings, districts, cursorBuildingId, focusZone });
-  stateRef.current = { buildings, districts, cursorBuildingId, focusZone };
+  const stateRef = useRef({ buildings, districts, cursorBuildingId, focusZone, showShortcutOverlay });
+  stateRef.current = { buildings, districts, cursorBuildingId, focusZone, showShortcutOverlay };
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -126,8 +129,22 @@ export function useCityKeyboard(
       const renderer = rendererRef.current;
       if (!renderer) return;
       const cam = renderer.camera;
-      const { buildings, districts, cursorBuildingId, focusZone } =
+      const { buildings, districts, cursorBuildingId, focusZone, showShortcutOverlay } =
         stateRef.current;
+
+      if (e.key === '?') {
+        toggleShortcutOverlay();
+        e.preventDefault();
+        return;
+      }
+
+      if (e.key === 'Escape' && showShortcutOverlay) {
+        toggleShortcutOverlay();
+        e.preventDefault();
+        return;
+      }
+
+      if (showShortcutOverlay) return;
 
       const syncCamera = () => {
         setZoom(cam.scale);
@@ -180,6 +197,7 @@ export function useCityKeyboard(
       if (e.key === 'r' || e.key === 'R') { toggleRoads(); e.preventDefault(); return; }
       if (e.key === 'n' || e.key === 'N') { toggleLabels(); e.preventDefault(); return; }
       if (e.key === 'm' || e.key === 'M') { toggleMinimap(); e.preventDefault(); return; }
+      if (e.key === 'c' || e.key === 'C') { toggleHighContrast(); e.preventDefault(); return; }
 
       // --- Cursor navigation ---
       if (buildings.length === 0) return;
@@ -260,6 +278,7 @@ export function useCityKeyboard(
     setCursor, selectBuilding, setFocusZone,
     setZoom, setCamera,
     toggleRoads, toggleLabels, toggleMinimap,
+    toggleShortcutOverlay, toggleHighContrast,
     rendererRef,
   ]);
 }
