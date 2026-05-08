@@ -9,6 +9,8 @@ import { IsometricCamera } from './IsometricCamera';
 import { drawDistricts } from './DistrictRenderer';
 import { drawBuildings, drawCursorHighlight } from './BuildingRenderer';
 import { drawRoads } from './RoadRenderer';
+import { drawAgents } from './AgentRenderer';
+import { AnimationManager } from './AnimationManager';
 import type { CityState } from '../store/cityStore';
 
 // Solarized Dark palette (desaturated) from sd-helpers.jsx
@@ -34,6 +36,7 @@ export class CityRenderer {
   private ctx: CanvasRenderingContext2D;
   camera: IsometricCamera;
   private city: CityState | null = null;
+  private animManager = new AnimationManager();
   showLabels = true;
   showRoads = false;
   cursorBuildingId: string | null = null;
@@ -87,7 +90,12 @@ export class CityRenderer {
     // 4. Buildings (back-to-front by gx+gy for occlusion)
     drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, performance.now());
 
-    // 5. Cursor highlight (drawn after all buildings so it's never occluded)
+    // 5. Agents — UFOs hover above or fly between buildings
+    if (this.city.agents.length > 0) {
+      drawAgents(ctx, this.camera, this.city.agents, this.city.buildings, performance.now(), this.animManager);
+    }
+
+    // 6. Cursor highlight (drawn after all buildings so it's never occluded)
     if (this.cursorBuildingId) {
       const cursorBuilding = this.city.buildings.find(
         (b) => b.id === this.cursorBuildingId,
@@ -97,7 +105,7 @@ export class CityRenderer {
       }
     }
 
-    // 6. Vignette
+    // 7. Vignette
     this.drawVignette(w, h);
   }
 
