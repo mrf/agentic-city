@@ -10,7 +10,7 @@ export interface CameraState {
 }
 
 const MIN_SCALE = 0.15;
-const MAX_SCALE = 4.0;
+const MAX_SCALE = 10.0;
 const PAN_SPEED = 20; // pixels per key press
 
 export class IsometricCamera {
@@ -61,6 +61,15 @@ export class IsometricCamera {
 
   zoom(delta: number): void {
     this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.scale + delta));
+  }
+
+  /** Zoom centered on a screen point (sx, sy) so that point stays fixed. */
+  zoomAt(delta: number, sx: number, sy: number): void {
+    const oldScale = this.scale;
+    this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.scale + delta));
+    const ratio = this.scale / oldScale;
+    this.ox = sx - (sx - this.ox) * ratio;
+    this.oy = sy - (sy - this.oy) * ratio;
   }
 
   zoomIn(): void {

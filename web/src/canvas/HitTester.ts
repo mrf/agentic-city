@@ -10,7 +10,7 @@
  */
 
 import type { IsometricCamera } from './IsometricCamera';
-import type { Building } from '../store/cityStore';
+import type { Building, Agent } from '../store/cityStore';
 
 function pointInPolygon(px: number, py: number, poly: [number, number][]): boolean {
   let inside = false;
@@ -70,6 +70,57 @@ export function hitTestBuildings(
     if (hitBuilding(camera, b, sx, sy)) hit = b;
   }
   return hit;
+}
+
+/** Compute an agent's screen position (ignoring hover bob). */
+function agentScreenPos(
+  camera: IsometricCamera,
+  agent: Agent,
+  buildMap: Map<string, Building>,
+): [number, number] | null {
+  if (agent.targetId) {
+    const target = buildMap.get(agent.targetId);
+    if (!target) return null;
+    const cx = target.gx + target.gw / 2;
+    const cy = target.gy + target.gh / 2;
+    const roofPt = camera.project(cx, cy, target.gz);
+    const hoverY = roofPt[1] - 30 * Math.max(0.6, Math.min(1.5, camera.scale));
+    return [roofPt[0], hoverY];
+  }
+  return null;
+}
+
+const UFO_HIT_RADIUS = 18;
+
+/**
+ * Return the agent at screen point (sx, sy), or null if none.
+ * Returns the index into the agents array for direct use with focusedAgentIndex.
+ */
+export function hitTestAgents(
+  camera: IsometricCamera,
+  agents: Agent[],
+  buildings: Building[],
+  sx: number,
+  sy: number,
+): number | null {
+  if (agents.length === 0) return null;
+  const buildMap = new Map<string, Building>(buildings.map((b) => [b.id, b]));
+  const hitR = UFO_HIT_RADIUS * Math.max(0.5, Math.min(1.8, camera.scale));
+
+  let bestIdx: number | null = null;
+  let bestDist = hitR * hitR;
+
+  for (let i = 0; i < agents.length; i++) {
+    const pos = agentScreenPos(camera, agents[i], buildMap);
+    if (!pos) continue;
+    const d = (pos[0] - sx) ** 2 + (pos[1] - sy) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+
+  return bestIdx;
 }
 
 /**

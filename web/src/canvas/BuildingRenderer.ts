@@ -171,30 +171,24 @@ function drawBuilding(
 
   // --- 4. Side faces (language-tinted, semi-transparent) ---
 
-  // Upper-right face (A -> B -> B2 -> A2) — brighter side
-  ctx.fillStyle = `rgba(${tR},${tG},${tB},0.10)`;
+  // Upper-right face (A -> B -> B2 -> A2) — outline only
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 0.85;
   ctx.beginPath();
   ctx.moveTo(A[0], A[1]);
   ctx.lineTo(B[0], B[1]);
   ctx.lineTo(B2[0], B2[1]);
   ctx.lineTo(A2[0], A2[1]);
   ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 0.85;
   ctx.stroke();
 
-  // Lower-left face (A -> D -> D2 -> A2) — darker side
-  ctx.fillStyle = `rgba(${tR},${tG},${tB},0.06)`;
+  // Lower-left face (A -> D -> D2 -> A2) — outline only
   ctx.beginPath();
   ctx.moveTo(A[0], A[1]);
   ctx.lineTo(D[0], D[1]);
   ctx.lineTo(D2[0], D2[1]);
   ctx.lineTo(A2[0], A2[1]);
   ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 0.85;
   ctx.stroke();
 
   // --- 5. Roof (A2 -> B2 -> C2 -> D2) ---
@@ -227,11 +221,22 @@ function drawBuilding(
   }
 }
 
+/** Bilinear interpolation within a quad defined by four screen-space corners. */
+function bilerp(
+  bl: [number, number], br: [number, number],
+  tl: [number, number], tr: [number, number],
+  u: number, v: number,
+): [number, number] {
+  return [
+    bl[0] * (1 - u) * (1 - v) + br[0] * u * (1 - v) + tr[0] * u * v + tl[0] * (1 - u) * v,
+    bl[1] * (1 - u) * (1 - v) + br[1] * u * (1 - v) + tr[1] * u * v + tl[1] * (1 - u) * v,
+  ];
+}
+
 /**
- * Draw window dots on the roof face, representing test coverage.
- * Dots are pseudo-randomly distributed but stable per building ID.
+ * Draw rectangular windows on the two visible side faces, representing coverage.
+ * Lit windows = covered, dim windows = uncovered.
  * Coverage color: green >= 0.8, yellow >= 0.5, red < 0.5.
- * Unlit slots are drawn faintly so the total "room count" is visible.
  * Skipped when coverage is unknown (< 0) or camera is zoomed out too far.
  */
 function drawWindowDots(
@@ -241,30 +246,36 @@ function drawWindowDots(
 ): void {
   if (b.coverage < 0) return;
   if (camera.scale < 0.5) return;
+  if (b.gz < 2) return;
 
+  let windowColor: string;
+  if (b.coverage >= 0.8) windowColor = SD.green;
+  else if (b.coverage >= 0.5) windowColor = SD.yellow;
+  else windowColor = SD.red;
+
+  // Face corners in screen space
+  const A  = camera.project(b.gx, b.gy);
+  const B  = camera.project(b.gx + b.gw, b.gy);
+  const D  = camera.project(b.gx, b.gy + b.gh);
   const A2 = camera.project(b.gx, b.gy, b.gz);
   const B2 = camera.project(b.gx + b.gw, b.gy, b.gz);
-  const C2 = camera.project(b.gx + b.gw, b.gy + b.gh, b.gz);
   const D2 = camera.project(b.gx, b.gy + b.gh, b.gz);
 
-  let dotColor: string;
-  if (b.coverage >= 0.8) dotColor = SD.green;
-  else if (b.coverage >= 0.5) dotColor = SD.yellow;
-  else dotColor = SD.red;
+  // Grid size per face
+  const colsR = Math.min(Math.max(1, Math.floor(b.gw * 0.5)), 4);
+  const colsL = Math.min(Math.max(1, Math.floor(b.gh * 0.5)), 4);
+  const rows  = Math.min(Math.max(1, Math.floor(b.gz / 2.5)), 3);
 
-  const cols = Math.min(Math.max(2, Math.ceil(b.gw * 0.8)), 6);
-  const rows = Math.min(Math.max(2, Math.ceil(b.gh * 0.8)), 5);
-  const total = cols * rows;
+  const total = (colsR + colsL) * rows;
   const litCount = Math.round(b.coverage * total);
 
-  // Seeded LCG PRNG for stable dot ordering per building
+  // Seeded LCG PRNG for stable window ordering per building
   let seed = hashId(b.id);
   const next = (): number => {
     seed = ((seed * 1664525) + 1013904223) >>> 0;
     return seed / 0x100000000;
   };
 
-  // Fisher-Yates shuffle to pick which slots are lit
   const order = Array.from({ length: total }, (_, i) => i);
   for (let i = total - 1; i > 0; i--) {
     const j = Math.floor(next() * (i + 1));
@@ -272,30 +283,60 @@ function drawWindowDots(
   }
   const litSet = new Set(order.slice(0, litCount));
 
-  const dotR = Math.max(0.7, camera.scale * 0.55);
+  const margin = 0.18;
+  const winU = 0.35; // window width as fraction of cell
+  const winV = 0.30; // window height as fraction of cell
 
   ctx.save();
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      // Bilinear interp of roof corners: P = A2*(1-u)*(1-v) + B2*u*(1-v) + C2*u*v + D2*(1-u)*v
-      const u = (col + 0.5) / cols;
-      const v = (row + 0.5) / rows;
-      const sx = A2[0] * (1 - u) * (1 - v) + B2[0] * u * (1 - v) + C2[0] * u * v + D2[0] * (1 - u) * v;
-      const sy = A2[1] * (1 - u) * (1 - v) + B2[1] * u * (1 - v) + C2[1] * u * v + D2[1] * (1 - u) * v;
 
-      const idx = row * cols + col;
-      if (litSet.has(idx)) {
-        ctx.fillStyle = dotColor;
-        ctx.globalAlpha = 0.75;
-      } else {
-        ctx.fillStyle = SD.base01;
-        ctx.globalAlpha = 0.25;
+  let idx = 0;
+
+  // Draw windows on a face quad (bl→br = base edge, tl→tr = roof edge)
+  function drawFace(
+    bl: [number, number], br: [number, number],
+    tl: [number, number], tr: [number, number],
+    cols: number,
+  ): void {
+    const hu = winU / cols * (1 - 2 * margin) / 2;
+    const hv = winV / rows * (1 - 2 * margin) / 2;
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const u = margin + (col + 0.5) / cols * (1 - 2 * margin);
+        const v = margin + (row + 0.5) / rows * (1 - 2 * margin);
+
+        const p0 = bilerp(bl, br, tl, tr, u - hu, v - hv);
+        const p1 = bilerp(bl, br, tl, tr, u + hu, v - hv);
+        const p2 = bilerp(bl, br, tl, tr, u + hu, v + hv);
+        const p3 = bilerp(bl, br, tl, tr, u - hu, v + hv);
+
+        if (litSet.has(idx)) {
+          ctx.strokeStyle = windowColor;
+          ctx.globalAlpha = 0.6;
+        } else {
+          ctx.strokeStyle = SD.base01;
+          ctx.globalAlpha = 0.2;
+        }
+        ctx.lineWidth = Math.max(0.5, camera.scale * 0.6);
+
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.lineTo(p2[0], p2[1]);
+        ctx.lineTo(p3[0], p3[1]);
+        ctx.closePath();
+        ctx.stroke();
+
+        idx++;
       }
-      ctx.beginPath();
-      ctx.arc(sx, sy, dotR, 0, Math.PI * 2);
-      ctx.fill();
     }
   }
+
+  // Upper-right face (A→B base, A2→B2 roof)
+  drawFace(A, B, A2, B2, colsR);
+  // Lower-left face (A→D base, A2→D2 roof)
+  drawFace(A, D, A2, D2, colsL);
+
   ctx.globalAlpha = 1;
   ctx.restore();
 }
@@ -323,17 +364,18 @@ function drawStatusPip(
   const px = A2[0] + 0.18 * (roofCx[0] - A2[0]);
   const py = A2[1] + 0.18 * (roofCx[1] - A2[1]);
 
-  const s = Math.max(2.5, camera.scale * 2.5); // half-size
+  const s = Math.max(1.5, camera.scale * 1.5); // half-size
 
   ctx.save();
 
   if (b.status === 'ok') {
+    ctx.globalAlpha = 0.6;
     ctx.fillStyle = SD.green;
     ctx.beginPath();
     ctx.arc(px, py, s, 0, Math.PI * 2);
     ctx.fill();
   } else if (b.status === 'warn') {
-    // Equilateral triangle pointing up
+    ctx.globalAlpha = 0.6;
     ctx.fillStyle = SD.yellow;
     ctx.beginPath();
     ctx.moveTo(px, py - s);
@@ -342,8 +384,7 @@ function drawStatusPip(
     ctx.closePath();
     ctx.fill();
   } else if (b.status === 'err') {
-    // Diamond (rotated square) with blink
-    ctx.globalAlpha = 0.3 + 0.7 * Math.abs(Math.sin(time * 0.003));
+    ctx.globalAlpha = 0.2 + 0.5 * Math.abs(Math.sin(time * 0.003));
     ctx.fillStyle = SD.red;
     ctx.beginPath();
     ctx.moveTo(px,     py - s);

@@ -237,11 +237,9 @@ function StatsPanel(): JSX.Element {
 }
 
 export function RightRail(): JSX.Element {
-  const { buildings, activities, agents } = useCityStore((s) => ({
-    buildings: s.city.buildings,
-    activities: s.city.activities,
-    agents: s.city.agents,
-  }));
+  const buildings = useCityStore((s) => s.city.buildings);
+  const activities = useCityStore((s) => s.city.activities);
+  const agents = useCityStore((s) => s.city.agents);
   const selectedId = useUiStore((s) => s.selectedBuildingId);
   const cursorId = useUiStore((s) => s.cursorBuildingId);
   const inspectedAgentId = useUiStore((s) => s.inspectedAgentId);

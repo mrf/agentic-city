@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { CityRenderer } from './canvas/CityRenderer';
-import { hitTestBuildings, nearestBuildingToScreen } from './canvas/HitTester';
+import { hitTestBuildings, hitTestAgents, nearestBuildingToScreen } from './canvas/HitTester';
 import { useAnimationFrame } from './hooks/useAnimationFrame';
 import { useCityKeyboard } from './hooks/useCityKeyboard';
 import { useCityStore } from './store/cityStore';
@@ -14,7 +14,7 @@ import { useSessionPersist } from './hooks/useSessionPersist';
 function makeDemoCity(): CityState {
   return {
     repoInfo: {
-      name: 'agent-city',
+      name: 'agentic-city',
       branch: 'main',
       headCommit: 'abc1234',
       ciStatus: 'unknown',
@@ -48,11 +48,11 @@ function makeDemoCity(): CityState {
       { fromId: 'src/canvas/renderer.ts', toId: 'src/store/city.ts',    weight: 1, confidence: 'weak' },
     ],
     agents: [
-      { id: 'ac-001', color: '#4a7a9c', mode: 'writing', task: 'refactor auth middleware', progress: 0.62, modelTier: 'opus' },
-      { id: 'ac-002', color: '#6a8a4a', mode: 'thinking', task: 'fix coverage gap in scanner', progress: 0.15, modelTier: 'sonnet' },
-      { id: 'ac-003', color: '#a9923a', mode: 'running', task: 'run test suite', progress: 0.80, modelTier: 'haiku' },
-      { id: 'ac-004', color: '#9c5070', mode: 'waiting', task: 'waiting for CI', progress: 1.0, modelTier: 'sonnet' },
-      { id: 'ac-005', color: '#a14a48', mode: 'error', task: 'add OpenAPI schema', progress: 0.30, modelTier: 'haiku', errorMsg: 'typecheck failed' },
+      { id: 'ac-001', color: '#4a7a9c', mode: 'writing', task: 'refactor auth middleware', progress: 0.62, modelTier: 'opus', targetId: 'src/api/server.go', locationConfidence: 'exact' },
+      { id: 'ac-002', color: '#6a8a4a', mode: 'thinking', task: 'fix coverage gap in scanner', progress: 0.15, modelTier: 'sonnet', targetId: 'internal/scanner.go', locationConfidence: 'inferred' },
+      { id: 'ac-003', color: '#a9923a', mode: 'running', task: 'run test suite', progress: 0.80, modelTier: 'haiku', targetId: 'internal/layout.go', locationConfidence: 'exact' },
+      { id: 'ac-004', color: '#9c5070', mode: 'waiting', task: 'waiting for CI', progress: 1.0, modelTier: 'sonnet', targetId: 'src/canvas/renderer.ts', locationConfidence: 'weak' },
+      { id: 'ac-005', color: '#a14a48', mode: 'error', task: 'add OpenAPI schema', progress: 0.30, modelTier: 'haiku', targetId: 'src/api/schema.ts', locationConfidence: 'exact', errorMsg: 'typecheck failed' },
     ],
     activities: [
       { ts: new Date(Date.now() - 5000).toISOString(), who: 'ac-001', message: 'extracted AuthMiddleware into pkg/auth', color: '#4a7a9c', severity: 'success' },
@@ -88,6 +88,8 @@ export function App(): JSX.Element {
   const selectBuilding = useUiStore((s) => s.selectBuilding);
   const setCamera = useUiStore((s) => s.setCamera);
   const setZoom = useUiStore((s) => s.setZoom);
+  const setFocusedAgentIndex = useUiStore((s) => s.setFocusedAgentIndex);
+  const setInspectedAgentId = useUiStore((s) => s.setInspectedAgentId);
 
   // Keyboard navigation: cursor, selection, camera, toggles
   useCityKeyboard(rendererRef);
@@ -95,9 +97,7 @@ export function App(): JSX.Element {
   // Persist viewport and UI state to localStorage, restore on reload
   useSessionPersist(rendererRef);
 
-  // Click handler: exact hit → select + set cursor; miss → set cursor to nearest.
-  // Camera uses CSS-pixel coordinates (project/unproject operate in CSS space),
-  // so we compare against CSS-pixel mouse positions, not DPR-scaled canvas pixels.
+  // Click handler: agents first (they render on top), then buildings.
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const renderer = rendererRef.current;
@@ -105,8 +105,19 @@ export function App(): JSX.Element {
       const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
+
+      // Check agents first — UFOs float above buildings
+      const agentIdx = hitTestAgents(renderer.camera, city.agents, city.buildings, sx, sy);
+      if (agentIdx !== null) {
+        setFocusedAgentIndex(agentIdx);
+        setInspectedAgentId(city.agents[agentIdx].id);
+        return;
+      }
+
       const hit = hitTestBuildings(renderer.camera, city.buildings, sx, sy);
       if (hit) {
+        setFocusedAgentIndex(null);
+        setInspectedAgentId(null);
         setCursor(hit.id);
         selectBuilding(hit.id);
       } else {
@@ -114,7 +125,7 @@ export function App(): JSX.Element {
         if (nearest) setCursor(nearest.id);
       }
     },
-    [city.buildings, setCursor, selectBuilding],
+    [city.agents, city.buildings, setCursor, selectBuilding, setFocusedAgentIndex, setInspectedAgentId],
   );
 
   // Initialize renderer and load demo data
@@ -133,11 +144,25 @@ export function App(): JSX.Element {
     resize();
     window.addEventListener('resize', resize);
 
+    // Mouse wheel zoom — centers on cursor position
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const delta = e.deltaY > 0 ? -0.15 : 0.15;
+      renderer.camera.zoomAt(delta * renderer.camera.scale, sx, sy);
+      setZoom(renderer.camera.scale);
+      setCamera(renderer.camera.ox, renderer.camera.oy);
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+
     // Load demo city
     setCity(makeDemoCity());
 
     return () => {
       window.removeEventListener('resize', resize);
+      canvas.removeEventListener('wheel', onWheel);
     };
   }, [setCity, setCamera, setZoom]);
 

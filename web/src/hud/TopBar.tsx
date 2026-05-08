@@ -40,7 +40,8 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 }
 
 export function TopBar(): JSX.Element {
-  const { repoInfo, stats } = useCityStore((s) => ({ repoInfo: s.city.repoInfo, stats: s.city.stats }));
+  const repoInfo = useCityStore((s) => s.city.repoInfo);
+  const stats = useCityStore((s) => s.city.stats);
 
   const sha = repoInfo.headCommit ? repoInfo.headCommit.slice(0, 7) : '-------';
   const cov = stats.coverage >= 0 ? `${Math.round(stats.coverage * 100)}%` : '—';
@@ -52,7 +53,7 @@ export function TopBar(): JSX.Element {
   return (
     <div style={S.bar}>
       {/* Left: repo identity */}
-      <Stat label="" value={repoInfo.name || 'agent-city'} color={sol.base2} />
+      <Stat label="" value={repoInfo.name || 'agentic-city'} color={sol.base2} />
       <span style={S.sep}>·</span>
       <Stat label="" value={repoInfo.branch || 'main'} color={sol.violet} />
       <Stat label="@ " value={sha} color={sol.base00} />
