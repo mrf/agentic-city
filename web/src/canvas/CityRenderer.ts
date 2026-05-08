@@ -85,7 +85,7 @@ export class CityRenderer {
     }
 
     // 4. Buildings (back-to-front by gx+gy for occlusion)
-    drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels);
+    drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, performance.now());
 
     // 5. Cursor highlight (drawn after all buildings so it's never occluded)
     if (this.cursorBuildingId) {

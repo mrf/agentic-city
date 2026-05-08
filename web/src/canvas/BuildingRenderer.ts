@@ -1,11 +1,18 @@
 /**
  * BuildingRenderer — isometric box rendering with language-tinted faces,
- * hidden back edges, and floating labels with backing plates.
+ * hidden back edges, floating labels, window dots, status pips, and edit rings.
  *
  * Draw order: footprint -> hidden back edges -> base outline ->
- *             side faces (language-tinted) -> roof -> label
+ *             side faces (language-tinted) -> roof -> window dots ->
+ *             edit rings -> status pip -> label
  *
  * Buildings are sorted back-to-front by (gx + gy) for correct occlusion.
+ *
+ * Status pips are color-blind safe: shape + color.
+ *   ok      = filled circle  (green)
+ *   warn    = filled triangle (yellow)
+ *   err     = blinking diamond (red)
+ *   unknown = hollow square   (base00)
  */
 
 import { IsometricCamera } from './IsometricCamera';
@@ -43,6 +50,15 @@ const LANG_COLORS: Record<string, string> = {
   spec: SD.yellow,
 };
 
+/** Stable hash of a string to a 32-bit unsigned int for seeded PRNG. */
+function hashId(id: string): number {
+  let h = 5381;
+  for (let i = 0; i < id.length; i++) {
+    h = ((h * 33) ^ id.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
+
 function hexToRgb(hex: string): [number, number, number] {
   return [
     parseInt(hex.slice(1, 3), 16),
@@ -64,13 +80,14 @@ export function drawBuildings(
   camera: IsometricCamera,
   buildings: Building[],
   showLabels: boolean,
+  time: number,
 ): void {
   const sorted = [...buildings].sort(
     (a, b) => (a.gx + a.gy) - (b.gx + b.gy),
   );
 
   for (const b of sorted) {
-    drawBuilding(ctx, camera, b, showLabels);
+    drawBuilding(ctx, camera, b, showLabels, time);
   }
 }
 
@@ -91,6 +108,7 @@ function drawBuilding(
   camera: IsometricCamera,
   b: Building,
   showLabels: boolean,
+  time: number,
 ): void {
   const tint = LANG_COLORS[b.language] ?? SD.base00;
   const [tR, tG, tB] = hexToRgb(tint);
@@ -192,10 +210,193 @@ function drawBuilding(
   ctx.lineWidth = 0.95;
   ctx.stroke();
 
-  // --- 6. Floating label with backing plate ---
+  // --- 6. Window dots (coverage pattern on roof) ---
+  drawWindowDots(ctx, camera, b);
+
+  // --- 7. Edit pulse rings (animated, when editing=true) ---
+  if (b.editing) {
+    drawEditRings(ctx, camera, b, time);
+  }
+
+  // --- 8. Status pip (shape + color, color-blind safe) ---
+  drawStatusPip(ctx, camera, b, time);
+
+  // --- 9. Floating label with backing plate ---
   if (showLabels) {
     drawLabel(ctx, camera, b);
   }
+}
+
+/**
+ * Draw window dots on the roof face, representing test coverage.
+ * Dots are pseudo-randomly distributed but stable per building ID.
+ * Coverage color: green >= 0.8, yellow >= 0.5, red < 0.5.
+ * Unlit slots are drawn faintly so the total "room count" is visible.
+ * Skipped when coverage is unknown (< 0) or camera is zoomed out too far.
+ */
+function drawWindowDots(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  b: Building,
+): void {
+  if (b.coverage < 0) return;
+  if (camera.scale < 0.5) return;
+
+  const A2 = camera.project(b.gx, b.gy, b.gz);
+  const B2 = camera.project(b.gx + b.gw, b.gy, b.gz);
+  const C2 = camera.project(b.gx + b.gw, b.gy + b.gh, b.gz);
+  const D2 = camera.project(b.gx, b.gy + b.gh, b.gz);
+
+  let dotColor: string;
+  if (b.coverage >= 0.8) dotColor = SD.green;
+  else if (b.coverage >= 0.5) dotColor = SD.yellow;
+  else dotColor = SD.red;
+
+  const cols = Math.min(Math.max(2, Math.ceil(b.gw * 0.8)), 6);
+  const rows = Math.min(Math.max(2, Math.ceil(b.gh * 0.8)), 5);
+  const total = cols * rows;
+  const litCount = Math.round(b.coverage * total);
+
+  // Seeded LCG PRNG for stable dot ordering per building
+  let seed = hashId(b.id);
+  const next = (): number => {
+    seed = ((seed * 1664525) + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+
+  // Fisher-Yates shuffle to pick which slots are lit
+  const order = Array.from({ length: total }, (_, i) => i);
+  for (let i = total - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+  }
+  const litSet = new Set(order.slice(0, litCount));
+
+  const dotR = Math.max(0.7, camera.scale * 0.55);
+
+  ctx.save();
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      // Bilinear interp of roof corners: P = A2*(1-u)*(1-v) + B2*u*(1-v) + C2*u*v + D2*(1-u)*v
+      const u = (col + 0.5) / cols;
+      const v = (row + 0.5) / rows;
+      const sx = A2[0] * (1 - u) * (1 - v) + B2[0] * u * (1 - v) + C2[0] * u * v + D2[0] * (1 - u) * v;
+      const sy = A2[1] * (1 - u) * (1 - v) + B2[1] * u * (1 - v) + C2[1] * u * v + D2[1] * (1 - u) * v;
+
+      const idx = row * cols + col;
+      if (litSet.has(idx)) {
+        ctx.fillStyle = dotColor;
+        ctx.globalAlpha = 0.75;
+      } else {
+        ctx.fillStyle = SD.base01;
+        ctx.globalAlpha = 0.25;
+      }
+      ctx.beginPath();
+      ctx.arc(sx, sy, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/**
+ * Draw a status pip at the front roof vertex (A2), offset slightly inward.
+ * Shape + color encoding for color-blind safety:
+ *   ok      → filled circle  (green)
+ *   warn    → filled triangle (yellow)
+ *   err     → blinking diamond (red)
+ *   unknown → hollow square   (base00)
+ */
+function drawStatusPip(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  b: Building,
+  time: number,
+): void {
+  if (camera.scale < 0.3) return;
+
+  const A2 = camera.project(b.gx, b.gy, b.gz);
+  const roofCx = camera.project(b.gx + b.gw / 2, b.gy + b.gh / 2, b.gz);
+
+  // Nudge inward ~15% of the way toward the roof center
+  const px = A2[0] + 0.18 * (roofCx[0] - A2[0]);
+  const py = A2[1] + 0.18 * (roofCx[1] - A2[1]);
+
+  const s = Math.max(2.5, camera.scale * 2.5); // half-size
+
+  ctx.save();
+
+  if (b.status === 'ok') {
+    ctx.fillStyle = SD.green;
+    ctx.beginPath();
+    ctx.arc(px, py, s, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (b.status === 'warn') {
+    // Equilateral triangle pointing up
+    ctx.fillStyle = SD.yellow;
+    ctx.beginPath();
+    ctx.moveTo(px, py - s);
+    ctx.lineTo(px + s * 0.866, py + s * 0.5);
+    ctx.lineTo(px - s * 0.866, py + s * 0.5);
+    ctx.closePath();
+    ctx.fill();
+  } else if (b.status === 'err') {
+    // Diamond (rotated square) with blink
+    ctx.globalAlpha = 0.3 + 0.7 * Math.abs(Math.sin(time * 0.003));
+    ctx.fillStyle = SD.red;
+    ctx.beginPath();
+    ctx.moveTo(px,     py - s);
+    ctx.lineTo(px + s, py);
+    ctx.lineTo(px,     py + s);
+    ctx.lineTo(px - s, py);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // unknown: hollow square
+    ctx.strokeStyle = SD.base00;
+    ctx.lineWidth = Math.max(0.8, camera.scale * 0.6);
+    ctx.strokeRect(px - s / 2, py - s / 2, s, s);
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/**
+ * Draw animated concentric pulse rings on the roof when editing=true.
+ * Three rings at staggered phases expand outward from the roof center,
+ * fading as they grow (sonar-ping effect). Color: SD.yellow (edit mode).
+ */
+function drawEditRings(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  b: Building,
+  time: number,
+): void {
+  const roofCx = camera.project(b.gx + b.gw / 2, b.gy + b.gh / 2, b.gz);
+  const cx = roofCx[0];
+  const cy = roofCx[1];
+
+  const maxR = Math.max((b.gw + b.gh) * camera.scale * 0.28, 6);
+  const period = 1800; // ms per cycle
+
+  ctx.save();
+  ctx.strokeStyle = SD.yellow;
+  ctx.lineWidth = Math.max(0.8, camera.scale * 0.8);
+
+  for (let i = 0; i < 3; i++) {
+    const phase = ((time / period) + i / 3) % 1;
+    const r = phase * maxR;
+    const alpha = (1 - phase) * 0.65;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 /** Draw an amber dashed ring around the cursor building's visible silhouette. */

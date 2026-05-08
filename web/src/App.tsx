@@ -26,8 +26,8 @@ function makeDemoCity(): CityState {
       { id: 'internal', label: 'INTERNAL/', parentId: '', gx: 16, gy: 16, gw: 22, gh: 14 },
     ],
     buildings: [
-      { id: 'src/api/server.go', districtId: 'src/api', label: 'server.go', language: 'go', loc: 240, coverage: -1, status: 'unknown', editing: false, exports: 5, gx: 2, gy: 2, gw: 6, gh: 5, gz: 8 },
-      { id: 'src/api/handlers.go', districtId: 'src/api', label: 'handlers.go', language: 'go', loc: 180, coverage: -1, status: 'unknown', editing: false, exports: 8, gx: 10, gy: 2, gw: 5, gh: 4, gz: 6 },
+      { id: 'src/api/server.go', districtId: 'src/api', label: 'server.go', language: 'go', loc: 240, coverage: 0.32, status: 'err', editing: false, exports: 5, gx: 2, gy: 2, gw: 6, gh: 5, gz: 8 },
+      { id: 'src/api/handlers.go', districtId: 'src/api', label: 'handlers.go', language: 'go', loc: 180, coverage: 0.61, status: 'warn', editing: true, exports: 8, gx: 10, gy: 2, gw: 5, gh: 4, gz: 6 },
       { id: 'src/api/schema.ts', districtId: 'src/api', label: 'schema.ts', language: 'ts', loc: 120, coverage: 0.72, status: 'ok', editing: false, exports: 3, gx: 2, gy: 8, gw: 4, gh: 4, gz: 4 },
       { id: 'src/canvas/renderer.ts', districtId: 'src/canvas', label: 'renderer.ts', language: 'ts', loc: 320, coverage: -1, status: 'unknown', editing: false, exports: 2, gx: 24, gy: 2, gw: 7, gh: 5, gz: 10 },
       { id: 'src/canvas/camera.ts', districtId: 'src/canvas', label: 'camera.ts', language: 'ts', loc: 90, coverage: -1, status: 'unknown', editing: false, exports: 1, gx: 24, gy: 8, gw: 4, gh: 4, gz: 3 },
