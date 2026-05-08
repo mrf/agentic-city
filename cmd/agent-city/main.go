@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -12,13 +13,10 @@ import (
 	"time"
 
 	"github.com/mferree/agent-city/internal/api"
+	"github.com/mferree/agent-city/internal/hub"
 	"github.com/mferree/agent-city/internal/model"
 	agentcityweb "github.com/mferree/agent-city/web"
 )
-
-type staticState struct{ state model.CityState }
-
-func (s staticState) GetState() model.CityState { return s.state }
 
 func main() {
 	demo := flag.Bool("demo", false, "Run in demo mode with synthetic city data")
@@ -27,18 +25,21 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	var provider api.StateProvider
+	var cityState *hub.State
 	if *demo {
-		state := generateDemoState()
-		provider = staticState{state}
+		s := generateDemoState()
+		cityState = hub.NewState(s)
 		log.Printf("demo mode: %d districts, %d buildings, %d agents",
-			len(state.Districts), len(state.Buildings), len(state.Agents))
+			len(s.Districts), len(s.Buildings), len(s.Agents))
 	} else {
-		provider = staticState{model.CityState{Timestamp: time.Now().UnixMilli()}}
+		cityState = hub.NewState(model.CityState{Timestamp: time.Now().UnixMilli()})
 		log.Printf("live mode: repo scanning not yet implemented — serving empty state")
 	}
 
-	api.New(provider).Register(mux)
+	h := hub.New(cityState)
+	go h.Run(context.Background())
+
+	api.New(cityState).WithWSHandler(h.ServeWS).Register(mux)
 
 	distFS, err := fs.Sub(agentcityweb.Dist, "dist")
 	if err != nil {
