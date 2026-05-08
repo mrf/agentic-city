@@ -7,6 +7,7 @@ import { useCityStore } from './store/cityStore';
 import type { CityState } from './store/cityStore';
 import { useUiStore } from './store/uiStore';
 import { HudOverlay } from './hud/HudOverlay';
+import { useSessionPersist } from './hooks/useSessionPersist';
 
 /** Generate a small demo city for development. */
 function makeDemoCity(): CityState {
@@ -63,6 +64,9 @@ export function App(): JSX.Element {
 
   // Keyboard navigation: cursor, selection, camera, toggles
   useCityKeyboard(rendererRef);
+
+  // Persist viewport and UI state to localStorage, restore on reload
+  useSessionPersist(rendererRef);
 
   // Click handler: exact hit → select + set cursor; miss → set cursor to nearest.
   // Camera uses CSS-pixel coordinates (project/unproject operate in CSS space),

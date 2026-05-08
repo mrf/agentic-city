@@ -89,9 +89,11 @@ function moveCursor(
   camera: IsometricCamera,
   building: Building,
   setCursor: (id: string | null) => void,
+  syncCamera: () => void,
 ): void {
   setCursor(building.id);
   autoFollow(camera, building);
+  syncCamera();
 }
 
 export function useCityKeyboard(
@@ -104,6 +106,8 @@ export function useCityKeyboard(
   const selectBuilding = useUiStore((s) => s.selectBuilding);
   const focusZone = useUiStore((s) => s.focusZone);
   const setFocusZone = useUiStore((s) => s.setFocusZone);
+  const setZoom = useUiStore((s) => s.setZoom);
+  const setCamera = useUiStore((s) => s.setCamera);
   const toggleRoads = useUiStore((s) => s.toggleRoads);
   const toggleLabels = useUiStore((s) => s.toggleLabels);
   const toggleMinimap = useUiStore((s) => s.toggleMinimap);
@@ -122,7 +126,13 @@ export function useCityKeyboard(
       const renderer = rendererRef.current;
       if (!renderer) return;
       const cam = renderer.camera;
-      const { buildings, districts, cursorBuildingId, focusZone } = stateRef.current;
+      const { buildings, districts, cursorBuildingId, focusZone } =
+        stateRef.current;
+
+      const syncCamera = () => {
+        setZoom(cam.scale);
+        setCamera(cam.ox, cam.oy);
+      };
 
       // --- Focus-zone switching ---
       if (e.key === '[') { setFocusZone('left'); e.preventDefault(); return; }
@@ -151,19 +161,19 @@ export function useCityKeyboard(
       // --- Camera pan (WASD / arrows) ---
       switch (e.key) {
         case 'w': case 'W': case 'ArrowUp':
-          cam.panByKey('up'); e.preventDefault(); return;
+          cam.panByKey('up'); syncCamera(); e.preventDefault(); return;
         case 's': case 'S': case 'ArrowDown':
-          cam.panByKey('down'); e.preventDefault(); return;
+          cam.panByKey('down'); syncCamera(); e.preventDefault(); return;
         case 'a': case 'A': case 'ArrowLeft':
-          cam.panByKey('left'); e.preventDefault(); return;
+          cam.panByKey('left'); syncCamera(); e.preventDefault(); return;
         case 'd': case 'D': case 'ArrowRight':
-          cam.panByKey('right'); e.preventDefault(); return;
+          cam.panByKey('right'); syncCamera(); e.preventDefault(); return;
         case '+': case '=':
-          cam.zoomIn(); e.preventDefault(); return;
+          cam.zoomIn(); syncCamera(); e.preventDefault(); return;
         case '-':
-          cam.zoomOut(); e.preventDefault(); return;
+          cam.zoomOut(); syncCamera(); e.preventDefault(); return;
         case '0':
-          cam.resetZoom(); e.preventDefault(); return;
+          cam.resetZoom(); syncCamera(); e.preventDefault(); return;
       }
 
       // --- UI toggles ---
@@ -179,7 +189,7 @@ export function useCityKeyboard(
       // First nav key initialises the cursor on the first building
       if (!cursor) {
         if (['h', 'j', 'k', 'l', 'Tab', 'Enter'].includes(e.key)) {
-          moveCursor(cam, buildings[0], setCursor);
+          moveCursor(cam, buildings[0], setCursor, syncCamera);
           e.preventDefault();
         }
         return;
@@ -192,7 +202,7 @@ export function useCityKeyboard(
       const dir = dirMap[e.key];
       if (dir) {
         const target = findNearest(cursor, buildings, dir);
-        if (target) moveCursor(cam, target, setCursor);
+        if (target) moveCursor(cam, target, setCursor, syncCamera);
         e.preventDefault();
         return;
       }
@@ -207,7 +217,7 @@ export function useCityKeyboard(
         const next = e.shiftKey
           ? (idx - 1 + inDistrict.length) % inDistrict.length
           : (idx + 1) % inDistrict.length;
-        moveCursor(cam, inDistrict[next], setCursor);
+        moveCursor(cam, inDistrict[next], setCursor, syncCamera);
         e.preventDefault();
         return;
       }
@@ -223,7 +233,7 @@ export function useCityKeyboard(
         const inDist = buildings
           .filter((b) => b.districtId === sorted[nextIdx].id)
           .sort((a, b) => a.loc - b.loc);
-        if (inDist.length > 0) moveCursor(cam, inDist[0], setCursor);
+        if (inDist.length > 0) moveCursor(cam, inDist[0], setCursor, syncCamera);
         e.preventDefault();
         return;
       }
@@ -238,6 +248,7 @@ export function useCityKeyboard(
       // F — focus/center camera on cursor
       if (e.key === 'f' || e.key === 'F') {
         autoFollow(cam, cursor, true);
+        syncCamera();
         e.preventDefault();
         return;
       }
@@ -247,6 +258,7 @@ export function useCityKeyboard(
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     setCursor, selectBuilding, setFocusZone,
+    setZoom, setCamera,
     toggleRoads, toggleLabels, toggleMinimap,
     rendererRef,
   ]);
