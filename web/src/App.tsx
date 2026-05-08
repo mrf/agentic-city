@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { CityRenderer } from './canvas/CityRenderer';
 import { useAnimationFrame } from './hooks/useAnimationFrame';
+import { useCityKeyboard } from './hooks/useCityKeyboard';
 import { useCityStore } from './store/cityStore';
 import type { CityState } from './store/cityStore';
 import { useUiStore } from './store/uiStore';
@@ -53,8 +54,11 @@ export function App(): JSX.Element {
   const rendererRef = useRef<CityRenderer | null>(null);
   const city = useCityStore((s) => s.city);
   const setCity = useCityStore((s) => s.setCity);
-  const selectBuilding = useUiStore((s) => s.selectBuilding);
   const showLabels = useUiStore((s) => s.showLabels);
+  const cursorBuildingId = useUiStore((s) => s.cursorBuildingId);
+
+  // Keyboard navigation: cursor, selection, camera, toggles
+  useCityKeyboard(rendererRef);
 
   // Initialize renderer and load demo data
   useEffect(() => {
@@ -89,35 +93,12 @@ export function App(): JSX.Element {
     }
   }, [showLabels]);
 
-  // Keyboard controls: pan (WASD/arrows), zoom (+/-/0)
+  // Sync cursor building into renderer for highlight drawing
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const renderer = rendererRef.current;
-      if (!renderer) return;
-      const cam = renderer.camera;
-
-      switch (e.key) {
-        case 'w': case 'W': case 'ArrowUp':
-          cam.panByKey('up'); break;
-        case 's': case 'S': case 'ArrowDown':
-          cam.panByKey('down'); break;
-        case 'a': case 'A': case 'ArrowLeft':
-          cam.panByKey('left'); break;
-        case 'd': case 'D': case 'ArrowRight':
-          cam.panByKey('right'); break;
-        case '+': case '=':
-          cam.zoomIn(); break;
-        case '-':
-          cam.zoomOut(); break;
-        case '0':
-          cam.resetZoom(); break;
-        case 'Escape':
-          selectBuilding(null); break;
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectBuilding]);
+    if (rendererRef.current) {
+      rendererRef.current.cursorBuildingId = cursorBuildingId;
+    }
+  }, [cursorBuildingId]);
 
   // rAF render loop
   useAnimationFrame((dt) => {

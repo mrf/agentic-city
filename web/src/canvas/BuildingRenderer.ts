@@ -198,6 +198,40 @@ function drawBuilding(
   }
 }
 
+/** Draw an amber dashed ring around the cursor building's visible silhouette. */
+export function drawCursorHighlight(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  b: Building,
+): void {
+  const pad = 0.5;
+
+  // Expanded silhouette: A→B (base) → B2→C2→D2 (roof) → D (base) → A
+  const A  = camera.project(b.gx - pad, b.gy - pad);
+  const B  = camera.project(b.gx + b.gw + pad, b.gy - pad);
+  const B2 = camera.project(b.gx + b.gw + pad, b.gy - pad, b.gz);
+  const C2 = camera.project(b.gx + b.gw + pad, b.gy + b.gh + pad, b.gz);
+  const D2 = camera.project(b.gx - pad, b.gy + b.gh + pad, b.gz);
+  const D  = camera.project(b.gx - pad, b.gy + b.gh + pad);
+
+  ctx.save();
+  ctx.setLineDash([5, 3]);
+  ctx.strokeStyle = '#d4a017';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#d4a017';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(A[0], A[1]);
+  ctx.lineTo(B[0], B[1]);
+  ctx.lineTo(B2[0], B2[1]);
+  ctx.lineTo(C2[0], C2[1]);
+  ctx.lineTo(D2[0], D2[1]);
+  ctx.lineTo(D[0], D[1]);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawLabel(
   ctx: CanvasRenderingContext2D,
   camera: IsometricCamera,

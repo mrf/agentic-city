@@ -7,8 +7,8 @@
 
 import { IsometricCamera } from './IsometricCamera';
 import { drawDistricts } from './DistrictRenderer';
-import { drawBuildings } from './BuildingRenderer';
-import type { CityState, Building, District } from '../store/cityStore';
+import { drawBuildings, drawCursorHighlight } from './BuildingRenderer';
+import type { CityState } from '../store/cityStore';
 
 // Solarized Dark palette (desaturated) from sd-helpers.jsx
 const SD = {
@@ -34,6 +34,7 @@ export class CityRenderer {
   camera: IsometricCamera;
   private city: CityState | null = null;
   showLabels = true;
+  cursorBuildingId: string | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -78,7 +79,17 @@ export class CityRenderer {
     // 4. Buildings (back-to-front by gx+gy for occlusion)
     drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels);
 
-    // 5. Vignette
+    // 5. Cursor highlight (drawn after all buildings so it's never occluded)
+    if (this.cursorBuildingId) {
+      const cursorBuilding = this.city.buildings.find(
+        (b) => b.id === this.cursorBuildingId,
+      );
+      if (cursorBuilding) {
+        drawCursorHighlight(ctx, this.camera, cursorBuilding);
+      }
+    }
+
+    // 6. Vignette
     this.drawVignette(w, h);
   }
 
