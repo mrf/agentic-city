@@ -1,21 +1,28 @@
+import { useUiStore } from '../store/uiStore';
 import { TopBar } from './TopBar';
 import { LeftRail } from './LeftRail';
 import { RightRail } from './RightRail';
 import { BottomStrip } from './BottomStrip';
+import { ShortcutOverlay } from './ShortcutOverlay';
 
-/**
- * HudOverlay renders all four HUD panels as fixed-position HTML elements
- * layered over the isometric canvas. pointer-events: none on the container
- * ensures canvas interactions pass through; individual panels opt back in
- * only where needed.
- */
 export function HudOverlay(): JSX.Element {
+  const highContrast = useUiStore((s) => s.highContrast);
+
   return (
     <>
-      <TopBar />
-      <LeftRail />
-      <RightRail />
-      <BottomStrip />
+      <div
+        style={
+          highContrast
+            ? { filter: 'brightness(1.5) contrast(1.2)', isolation: 'isolate' }
+            : undefined
+        }
+      >
+        <TopBar />
+        <LeftRail />
+        <RightRail />
+        <BottomStrip />
+      </div>
+      <ShortcutOverlay />
     </>
   );
 }

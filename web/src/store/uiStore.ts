@@ -18,6 +18,10 @@ interface UiStore {
   showLabels: boolean;
   showMinimap: boolean;
 
+  // Overlays
+  showShortcutOverlay: boolean;
+  highContrast: boolean;
+
   selectBuilding: (id: string | null) => void;
   setCursor: (id: string | null) => void;
   setFocusZone: (zone: FocusZone) => void;
@@ -26,6 +30,8 @@ interface UiStore {
   toggleRoads: () => void;
   toggleLabels: () => void;
   toggleMinimap: () => void;
+  toggleShortcutOverlay: () => void;
+  toggleHighContrast: () => void;
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -41,6 +47,9 @@ export const useUiStore = create<UiStore>((set) => ({
   showLabels: true,
   showMinimap: false,
 
+  showShortcutOverlay: false,
+  highContrast: false,
+
   selectBuilding: (id) => set({ selectedBuildingId: id }),
   setCursor: (id) => set({ cursorBuildingId: id }),
   setFocusZone: (zone) => set({ focusZone: zone }),
@@ -49,4 +58,6 @@ export const useUiStore = create<UiStore>((set) => ({
   toggleRoads: () => set((s) => ({ showRoads: !s.showRoads })),
   toggleLabels: () => set((s) => ({ showLabels: !s.showLabels })),
   toggleMinimap: () => set((s) => ({ showMinimap: !s.showMinimap })),
+  toggleShortcutOverlay: () => set((s) => ({ showShortcutOverlay: !s.showShortcutOverlay })),
+  toggleHighContrast: () => set((s) => ({ highContrast: !s.highContrast })),
 }));
