@@ -7,6 +7,7 @@ import { useCityStore } from './store/cityStore';
 import type { CityState } from './store/cityStore';
 import { useUiStore } from './store/uiStore';
 import { HudOverlay } from './hud/HudOverlay';
+import { ScanlineOverlay } from './hud/ScanlineOverlay';
 import { useSessionPersist } from './hooks/useSessionPersist';
 
 /** Generate a small demo city for development. */
@@ -150,6 +151,7 @@ export function App(): JSX.Element {
           cursor: 'default',
         }}
       />
+      <ScanlineOverlay />
       <HudOverlay />
     </>
   );
