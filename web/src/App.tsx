@@ -6,6 +6,7 @@ import { useCityKeyboard } from './hooks/useCityKeyboard';
 import { useCityStore } from './store/cityStore';
 import type { CityState } from './store/cityStore';
 import { useUiStore } from './store/uiStore';
+import { HudOverlay } from './hud/HudOverlay';
 
 /** Generate a small demo city for development. */
 function makeDemoCity(): CityState {
@@ -131,18 +132,21 @@ export function App(): JSX.Element {
   });
 
   return (
-    <canvas
-      ref={canvasRef}
-      onClick={handleCanvasClick}
-      style={{
-        display: 'block',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        cursor: 'default',
-      }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        onClick={handleCanvasClick}
+        style={{
+          display: 'block',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          cursor: 'default',
+        }}
+      />
+      <HudOverlay />
+    </>
   );
 }
