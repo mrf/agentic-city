@@ -54,6 +54,7 @@ export function App(): JSX.Element {
   const city = useCityStore((s) => s.city);
   const setCity = useCityStore((s) => s.setCity);
   const selectBuilding = useUiStore((s) => s.selectBuilding);
+  const showLabels = useUiStore((s) => s.showLabels);
 
   // Initialize renderer and load demo data
   useEffect(() => {
@@ -77,10 +78,16 @@ export function App(): JSX.Element {
     };
   }, [setCity]);
 
-  // Push city state into renderer when it changes
+  // Push city state and UI flags into renderer when they change
   useEffect(() => {
     rendererRef.current?.setCity(city);
   }, [city]);
+
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.showLabels = showLabels;
+    }
+  }, [showLabels]);
 
   // Keyboard controls: pan (WASD/arrows), zoom (+/-/0)
   useEffect(() => {

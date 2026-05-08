@@ -6,7 +6,8 @@
  */
 
 import { IsometricCamera } from './IsometricCamera';
-import type { CityState, Building, District } from '../store/cityStore';
+import { drawBuildings } from './BuildingRenderer';
+import type { CityState, District } from '../store/cityStore';
 
 // Solarized Dark palette (desaturated) from sd-helpers.jsx
 const SD = {
@@ -26,23 +27,12 @@ const SD = {
   cyanDim: '#345e5e',
 } as const;
 
-const LANG_COLORS: Record<string, string> = {
-  ts: SD.blue,
-  tsx: SD.blue,
-  js: SD.yellow,
-  jsx: SD.yellow,
-  go: SD.cyan,
-  py: SD.green,
-  rs: SD.orange,
-  sql: SD.blueDim,
-  md: SD.base00,
-};
-
 export class CityRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   camera: IsometricCamera;
   private city: CityState | null = null;
+  showLabels = true;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -90,12 +80,7 @@ export class CityRenderer {
     }
 
     // 4. Buildings (back-to-front by gx+gy for occlusion)
-    const sortedBuildings = [...this.city.buildings].sort(
-      (a, b) => a.gx + a.gy - (b.gx + b.gy)
-    );
-    for (const b of sortedBuildings) {
-      this.drawBuilding(b);
-    }
+    drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels);
 
     // 5. Vignette
     this.drawVignette(w, h);
@@ -163,85 +148,6 @@ export class CityRenderer {
     ctx.fillText(d.label, center[0], center[1]);
   }
 
-  private drawBuilding(b: Building): void {
-    const { ctx } = this;
-    const cam = this.camera;
-    const color = LANG_COLORS[b.language] ?? SD.base00;
-
-    // Four corners of the footprint on the ground plane
-    const fl = cam.project(b.gx, b.gy);
-    const fr = cam.project(b.gx + b.gw, b.gy);
-    const br = cam.project(b.gx + b.gw, b.gy + b.gh);
-    const bl = cam.project(b.gx, b.gy + b.gh);
-
-    // Four corners of the roof
-    const rl = cam.project(b.gx, b.gy, b.gz);
-    const rr = cam.project(b.gx + b.gw, b.gy, b.gz);
-    const rbr = cam.project(b.gx + b.gw, b.gy + b.gh, b.gz);
-    const rbl = cam.project(b.gx, b.gy + b.gh, b.gz);
-
-    // Right face
-    ctx.fillStyle = this.darken(color, 0.6);
-    ctx.beginPath();
-    ctx.moveTo(fr[0], fr[1]);
-    ctx.lineTo(br[0], br[1]);
-    ctx.lineTo(rbr[0], rbr[1]);
-    ctx.lineTo(rr[0], rr[1]);
-    ctx.closePath();
-    ctx.fill();
-
-    // Left face
-    ctx.fillStyle = this.darken(color, 0.4);
-    ctx.beginPath();
-    ctx.moveTo(bl[0], bl[1]);
-    ctx.lineTo(br[0], br[1]);
-    ctx.lineTo(rbr[0], rbr[1]);
-    ctx.lineTo(rbl[0], rbl[1]);
-    ctx.closePath();
-    ctx.fill();
-
-    // Roof
-    ctx.fillStyle = this.darken(color, 0.8);
-    ctx.beginPath();
-    ctx.moveTo(rl[0], rl[1]);
-    ctx.lineTo(rr[0], rr[1]);
-    ctx.lineTo(rbr[0], rbr[1]);
-    ctx.lineTo(rbl[0], rbl[1]);
-    ctx.closePath();
-    ctx.fill();
-
-    // Wireframe edges
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
-
-    // Roof outline
-    ctx.beginPath();
-    ctx.moveTo(rl[0], rl[1]);
-    ctx.lineTo(rr[0], rr[1]);
-    ctx.lineTo(rbr[0], rbr[1]);
-    ctx.lineTo(rbl[0], rbl[1]);
-    ctx.closePath();
-    ctx.stroke();
-
-    // Visible vertical edges
-    ctx.beginPath();
-    ctx.moveTo(fr[0], fr[1]);
-    ctx.lineTo(rr[0], rr[1]);
-    ctx.moveTo(br[0], br[1]);
-    ctx.lineTo(rbr[0], rbr[1]);
-    ctx.moveTo(bl[0], bl[1]);
-    ctx.lineTo(rbl[0], rbl[1]);
-    ctx.stroke();
-
-    // Visible base edges (front-right and front-left)
-    ctx.beginPath();
-    ctx.moveTo(fr[0], fr[1]);
-    ctx.lineTo(br[0], br[1]);
-    ctx.moveTo(bl[0], bl[1]);
-    ctx.lineTo(br[0], br[1]);
-    ctx.stroke();
-  }
-
   private drawVignette(w: number, h: number): void {
     const { ctx } = this;
     const gradient = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.8);
@@ -251,11 +157,4 @@ export class CityRenderer {
     ctx.fillRect(0, 0, w, h);
   }
 
-  /** Darken a hex color by a factor (0 = black, 1 = original). */
-  private darken(hex: string, factor: number): string {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
-  }
 }
