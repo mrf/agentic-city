@@ -6,7 +6,8 @@
  */
 
 import { IsometricCamera } from './IsometricCamera';
-import type { CityState, Building, District } from '../store/cityStore';
+import { drawDistricts } from './DistrictRenderer';
+import type { CityState, Building } from '../store/cityStore';
 
 // Solarized Dark palette (desaturated) from sd-helpers.jsx
 const SD = {
@@ -82,12 +83,7 @@ export class CityRenderer {
     if (!this.city) return;
 
     // 3. District outlines (back-to-front by gx+gy)
-    const sortedDistricts = [...this.city.districts].sort(
-      (a, b) => a.gx + a.gy - (b.gx + b.gy)
-    );
-    for (const d of sortedDistricts) {
-      this.drawDistrict(d);
-    }
+    drawDistricts(ctx, this.camera, this.city.districts);
 
     // 4. Buildings (back-to-front by gx+gy for occlusion)
     const sortedBuildings = [...this.city.buildings].sort(
@@ -104,63 +100,23 @@ export class CityRenderer {
   private drawGrid(w: number, h: number): void {
     const { ctx } = this;
 
-    // Fine grid (12px)
-    ctx.strokeStyle = 'rgba(138,144,151,0.035)';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    for (let x = 0; x < w; x += 12) {
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-    }
-    for (let y = 0; y < h; y += 12) {
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-    }
-    ctx.stroke();
+    const strokeGrid = (step: number, alpha: number): void => {
+      ctx.strokeStyle = `rgba(138,144,151,${alpha})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (let x = 0; x < w; x += step) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+      }
+      for (let y = 0; y < h; y += step) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }
+      ctx.stroke();
+    };
 
-    // Coarse grid (60px)
-    ctx.strokeStyle = 'rgba(138,144,151,0.07)';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    for (let x = 0; x < w; x += 60) {
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-    }
-    for (let y = 0; y < h; y += 60) {
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-    }
-    ctx.stroke();
-  }
-
-  private drawDistrict(d: District): void {
-    const { ctx } = this;
-    const cam = this.camera;
-
-    // Draw a dashed diamond outline for the district
-    const tl = cam.project(d.gx, d.gy);
-    const tr = cam.project(d.gx + d.gw, d.gy);
-    const br = cam.project(d.gx + d.gw, d.gy + d.gh);
-    const bl = cam.project(d.gx, d.gy + d.gh);
-
-    ctx.setLineDash([6, 4]);
-    ctx.strokeStyle = SD.base01;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(tl[0], tl[1]);
-    ctx.lineTo(tr[0], tr[1]);
-    ctx.lineTo(br[0], br[1]);
-    ctx.lineTo(bl[0], bl[1]);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // District label
-    const center = cam.project(d.gx + d.gw / 2, d.gy + d.gh / 2);
-    ctx.font = '10px "JetBrains Mono", monospace';
-    ctx.fillStyle = SD.base01;
-    ctx.textAlign = 'center';
-    ctx.fillText(d.label, center[0], center[1]);
+    strokeGrid(12, 0.035); // Fine grid
+    strokeGrid(60, 0.07);  // Coarse grid
   }
 
   private drawBuilding(b: Building): void {
