@@ -4,6 +4,7 @@ import { LeftRail } from './LeftRail';
 import { RightRail } from './RightRail';
 import { BottomStrip } from './BottomStrip';
 import { ShortcutOverlay } from './ShortcutOverlay';
+import { Minimap } from './Minimap';
 
 export function HudOverlay(): JSX.Element {
   const highContrast = useUiStore((s) => s.highContrast);
@@ -23,6 +24,7 @@ export function HudOverlay(): JSX.Element {
         <BottomStrip />
       </div>
       <ShortcutOverlay />
+      <Minimap />
     </>
   );
 }
