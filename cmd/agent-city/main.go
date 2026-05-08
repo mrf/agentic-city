@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -12,9 +11,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/mferree/agent-city/internal/api"
 	"github.com/mferree/agent-city/internal/model"
 	agentcityweb "github.com/mferree/agent-city/web"
 )
+
+type staticState struct{ state model.CityState }
+
+func (s staticState) GetState() model.CityState { return s.state }
 
 func main() {
 	demo := flag.Bool("demo", false, "Run in demo mode with synthetic city data")
@@ -23,22 +27,18 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	var provider api.StateProvider
 	if *demo {
 		state := generateDemoState()
-		mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			if err := json.NewEncoder(w).Encode(state); err != nil {
-				log.Printf("encode error: %v", err)
-			}
-		})
+		provider = staticState{state}
 		log.Printf("demo mode: %d districts, %d buildings, %d agents",
 			len(state.Districts), len(state.Buildings), len(state.Agents))
 	} else {
-		mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "not implemented: run with --demo", http.StatusNotImplemented)
-		})
+		provider = staticState{model.CityState{Timestamp: time.Now().UnixMilli()}}
+		log.Printf("live mode: repo scanning not yet implemented — serving empty state")
 	}
+
+	api.New(provider).Register(mux)
 
 	distFS, err := fs.Sub(agentcityweb.Dist, "dist")
 	if err != nil {
@@ -325,5 +325,5 @@ func makeDemoActivities() []model.ActivityEvent {
 }
 
 func clamp(v, lo, hi float64) float64 {
-	return math.Max(lo, math.Min(hi, v))
+	return max(lo, min(hi, v))
 }
