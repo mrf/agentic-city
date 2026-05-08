@@ -191,27 +191,7 @@ func ScanRepo(repoPath string, cfg ScanConfig) ([]model.Building, error) {
 			continue
 		}
 
-		// language detection
-		lang := extensionToLanguage[ext]
-		if lang == "" {
-			lang = "unknown"
-		}
-
-		// district is the parent directory
-		districtID := path.Dir(filePath)
-		if districtID == "." {
-			districtID = ""
-		}
-
-		buildings = append(buildings, model.Building{
-			ID:         filePath,
-			DistrictID: districtID,
-			Label:      path.Base(filePath),
-			Language:   lang,
-			LOC:        loc,
-			Coverage:   -1, // unknown until metrics parser runs
-			Status:     "unknown",
-		})
+		buildings = append(buildings, newBuilding(filePath, ext, loc))
 	}
 
 	return buildings, nil
@@ -298,4 +278,28 @@ func countLinesAndSniff(r io.Reader) (loc int, binary bool) {
 		loc++
 	}
 	return loc, false
+}
+
+// newBuilding constructs a Building from a repo-relative file path, its
+// lowercased extension, and a line count. Layout fields are left at zero.
+func newBuilding(relPath, ext string, loc int) model.Building {
+	lang := extensionToLanguage[ext]
+	if lang == "" {
+		lang = "unknown"
+	}
+
+	districtID := path.Dir(relPath)
+	if districtID == "." {
+		districtID = ""
+	}
+
+	return model.Building{
+		ID:         relPath,
+		DistrictID: districtID,
+		Label:      path.Base(relPath),
+		Language:   lang,
+		LOC:        loc,
+		Coverage:   -1,
+		Status:     "unknown",
+	}
 }
