@@ -18,11 +18,13 @@ const S: Record<string, CSSProperties> = {
     left: 0,
     bottom: BOTTOM_STRIP_H,
     width: RAIL_W,
+    maxWidth: 'calc(50vw - 4px)',
     background: `${sol.base02}e6`,
     borderRight: `1px solid ${sol.base01}`,
     display: 'flex',
     flexDirection: 'column',
     zIndex: 90,
+    overflow: 'hidden',
   },
   header: {
     padding: '6px 10px',

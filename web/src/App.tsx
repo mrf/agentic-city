@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { CityRenderer } from './canvas/CityRenderer';
 import { hitTestBuildings, hitTestAgents, nearestBuildingToScreen } from './canvas/HitTester';
 import { useAnimationFrame } from './hooks/useAnimationFrame';
@@ -90,6 +90,35 @@ export function App(): JSX.Element {
   const setZoom = useUiStore((s) => s.setZoom);
   const setFocusedAgentIndex = useUiStore((s) => s.setFocusedAgentIndex);
   const setInspectedAgentId = useUiStore((s) => s.setInspectedAgentId);
+  const [canvasCursor, setCanvasCursor] = useState<string>('default');
+
+  // Mousemove: update pointer cursor and hover highlight
+  const handleCanvasMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const renderer = rendererRef.current;
+      if (!renderer) return;
+      const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      const agentIdx = hitTestAgents(renderer.camera, city.agents, city.buildings, sx, sy);
+      if (agentIdx !== null) {
+        setCanvasCursor('pointer');
+        renderer.hoveredBuildingId = null;
+        return;
+      }
+
+      const hit = hitTestBuildings(renderer.camera, city.buildings, sx, sy);
+      if (hit) {
+        setCanvasCursor('pointer');
+        renderer.hoveredBuildingId = hit.id;
+      } else {
+        setCanvasCursor('default');
+        renderer.hoveredBuildingId = null;
+      }
+    },
+    [city.agents, city.buildings],
+  );
 
   // Keyboard navigation: cursor, selection, camera, toggles
   useCityKeyboard(rendererRef);
@@ -206,6 +235,7 @@ export function App(): JSX.Element {
       <canvas
         ref={canvasRef}
         onClick={handleCanvasClick}
+        onMouseMove={handleCanvasMouseMove}
         style={{
           display: 'block',
           position: 'fixed',
@@ -213,7 +243,7 @@ export function App(): JSX.Element {
           left: 0,
           width: '100vw',
           height: '100vh',
-          cursor: 'default',
+          cursor: canvasCursor,
         }}
       />
       <ScanlineOverlay />

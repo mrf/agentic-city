@@ -7,7 +7,7 @@
 
 import { IsometricCamera } from './IsometricCamera';
 import { drawDistricts } from './DistrictRenderer';
-import { drawBuildings, drawCursorHighlight } from './BuildingRenderer';
+import { drawBuildings, drawCursorHighlight, drawHoverHighlight } from './BuildingRenderer';
 import { drawRoads } from './RoadRenderer';
 import { drawAgents } from './AgentRenderer';
 import { AnimationManager } from './AnimationManager';
@@ -41,6 +41,7 @@ export class CityRenderer {
   showRoads = false;
   cursorBuildingId: string | null = null;
   selectedBuildingId: string | null = null;
+  hoveredBuildingId: string | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -95,7 +96,17 @@ export class CityRenderer {
       drawAgents(ctx, this.camera, this.city.agents, this.city.buildings, performance.now(), this.animManager);
     }
 
-    // 6. Cursor highlight (drawn after all buildings so it's never occluded)
+    // 6. Hover highlight (subtle glow on mouseover)
+    if (this.hoveredBuildingId && this.hoveredBuildingId !== this.cursorBuildingId) {
+      const hoveredBuilding = this.city.buildings.find(
+        (b) => b.id === this.hoveredBuildingId,
+      );
+      if (hoveredBuilding) {
+        drawHoverHighlight(ctx, this.camera, hoveredBuilding);
+      }
+    }
+
+    // 7. Cursor highlight (drawn after all buildings so it's never occluded)
     if (this.cursorBuildingId) {
       const cursorBuilding = this.city.buildings.find(
         (b) => b.id === this.cursorBuildingId,
@@ -105,7 +116,7 @@ export class CityRenderer {
       }
     }
 
-    // 7. Vignette
+    // 8. Vignette
     this.drawVignette(w, h);
   }
 

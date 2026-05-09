@@ -17,6 +17,8 @@ const S: Record<string, CSSProperties> = {
     padding: '0 12px',
     gap: 16,
     zIndex: 100,
+    overflow: 'hidden',
+    minWidth: 0,
   },
   sep: {
     color: sol.base01,
@@ -27,6 +29,23 @@ const S: Record<string, CSSProperties> = {
   },
   spacer: {
     flex: 1,
+    minWidth: 8,
+  },
+  identity: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    flexShrink: 0,
+    overflow: 'hidden',
+  },
+  stats: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    overflow: 'hidden',
+    flexShrink: 1,
+    minWidth: 0,
+    whiteSpace: 'nowrap' as const,
   },
 };
 
@@ -53,29 +72,33 @@ export function TopBar(): JSX.Element {
   return (
     <div style={S.bar}>
       {/* Left: repo identity */}
-      <Stat label="" value={repoInfo.name || 'agentic-city'} color={sol.base2} />
-      <span style={S.sep}>·</span>
-      <Stat label="" value={repoInfo.branch || 'main'} color={sol.violet} />
-      <Stat label="@ " value={sha} color={sol.base00} />
-      <span style={S.sep}>|</span>
-      <Stat label="CI " value={repoInfo.ciStatus || 'unknown'} color={ciColor(repoInfo.ciStatus)} />
+      <div style={S.identity}>
+        <Stat label="" value={repoInfo.name || 'agentic-city'} color={sol.base2} />
+        <span style={S.sep}>·</span>
+        <Stat label="" value={repoInfo.branch || 'main'} color={sol.violet} />
+        <Stat label="@ " value={sha} color={sol.base00} />
+        <span style={S.sep}>|</span>
+        <Stat label="CI " value={repoInfo.ciStatus || 'unknown'} color={ciColor(repoInfo.ciStatus)} />
+      </div>
 
       <div style={S.spacer} />
 
-      {/* Right: repo stats */}
-      <Stat label="files " value={String(stats.fileCount)} />
-      <span style={S.sep}>·</span>
-      <Stat label="LOC " value={stats.totalLoc.toLocaleString()} />
-      <span style={S.sep}>·</span>
-      <Stat label="cov " value={cov} color={coverageColor(stats.coverage)} />
-      <span style={S.sep}>·</span>
-      <Stat label="tests " value={tests} color={stats.testsPassing === stats.testsTotal && stats.testsTotal > 0 ? sol.green : sol.base1} />
-      {stats.openPrs > 0 && (
-        <>
-          <span style={S.sep}>·</span>
-          <Stat label="PRs " value={String(stats.openPrs)} color={sol.yellow} />
-        </>
-      )}
+      {/* Right: repo stats — clip when narrow */}
+      <div style={S.stats}>
+        <Stat label="files " value={String(stats.fileCount)} />
+        <span style={S.sep}>·</span>
+        <Stat label="LOC " value={stats.totalLoc.toLocaleString()} />
+        <span style={S.sep}>·</span>
+        <Stat label="cov " value={cov} color={coverageColor(stats.coverage)} />
+        <span style={S.sep}>·</span>
+        <Stat label="tests " value={tests} color={stats.testsPassing === stats.testsTotal && stats.testsTotal > 0 ? sol.green : sol.base1} />
+        {stats.openPrs > 0 && (
+          <>
+            <span style={S.sep}>·</span>
+            <Stat label="PRs " value={String(stats.openPrs)} color={sol.yellow} />
+          </>
+        )}
+      </div>
     </div>
   );
 }

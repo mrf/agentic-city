@@ -25,11 +25,13 @@ const S: Record<string, CSSProperties> = {
     right: 0,
     bottom: BOTTOM_STRIP_H,
     width: RAIL_W,
+    maxWidth: 'calc(50vw - 4px)',
     background: `${sol.base02}e6`,
     borderLeft: `1px solid ${sol.base01}`,
     display: 'flex',
     flexDirection: 'column',
     zIndex: 90,
+    overflow: 'hidden',
   },
   section: {
     borderBottom: `1px solid ${sol.base01}`,
