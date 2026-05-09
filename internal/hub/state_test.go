@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/mferree/agent-city/internal/model"
 )
@@ -75,7 +74,7 @@ func TestState_DirtyFlagLifecycle(t *testing.T) {
 }
 
 // TestHub_NoopTickSkipsBroadcast verifies that repeated ticks without any
-// intervening SetState do not enqueue messages on the broadcast channel.
+// intervening SetState do not send messages to clients.
 func TestHub_NoopTickSkipsBroadcast(t *testing.T) {
 	initial := model.CityState{Stats: model.RepoStats{FileCount: 1}}
 	s := NewState(initial)
@@ -85,21 +84,23 @@ func TestHub_NoopTickSkipsBroadcast(t *testing.T) {
 	// snapshot so prevJSON is populated and the dirty flag is clear).
 	h.prevJSON, _ = s.consumeStateJSON()
 
-	// With no intervening SetState, maybeBroadcastPatch must not enqueue anything.
-	// Register a synthetic client so the early-exit "no clients" check doesn't fire.
-	h.clients[&client{}] = struct{}{}
+	// With no intervening SetState, maybeBroadcastPatch must not send anything.
+	// Register a synthetic client with a buffered send channel.
+	recv := make(chan []byte, 4)
+	h.clients[&client{send: recv}] = struct{}{}
 
-	before := len(h.broadcast)
 	h.maybeBroadcastPatch()
-	after := len(h.broadcast)
 
-	if after > before {
-		t.Errorf("broadcast channel grew by %d on a no-op tick", after-before)
+	select {
+	case <-recv:
+		t.Error("client received a message on a no-op tick")
+	default:
+		// expected — no message sent
 	}
 }
 
 // TestHub_SetStateTriggersBroadcast verifies that after SetState the next
-// maybeBroadcastPatch call does enqueue a patch.
+// maybeBroadcastPatch call sends a patch to clients.
 func TestHub_SetStateTriggersBroadcast(t *testing.T) {
 	initial := model.CityState{Stats: model.RepoStats{FileCount: 1}}
 	s := NewState(initial)
@@ -107,28 +108,21 @@ func TestHub_SetStateTriggersBroadcast(t *testing.T) {
 
 	// Simulate the hub having already sent the initial snapshot.
 	h.prevJSON, _ = s.consumeStateJSON()
-	h.clients[&client{}] = struct{}{}
+	recv := make(chan []byte, 4)
+	h.clients[&client{send: recv}] = struct{}{}
 
 	// Mutate state.
 	s.SetState(model.CityState{Stats: model.RepoStats{FileCount: 99}})
 
-	// Allow the broadcast to be drained in a background goroutine so the
-	// buffered send in maybeBroadcastPatch doesn't block.
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		select {
-		case <-h.broadcast:
-		case <-time.After(time.Second):
-		}
-	}()
-
 	h.maybeBroadcastPatch()
 
 	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for broadcast after SetState")
+	case msg := <-recv:
+		if len(msg) == 0 {
+			t.Error("received empty message")
+		}
+	default:
+		t.Fatal("client did not receive patch after SetState")
 	}
 }
 

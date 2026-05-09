@@ -51,14 +51,13 @@ func checkOrigin(r *http.Request) bool {
 type Hub struct {
 	state      *State
 	clients    map[*client]struct{}
-	broadcast  chan []byte
 	register   chan *client
 	unregister chan *client
 	notifyCh   chan struct{}
 	prevJSON   []byte
-	// quit is closed by Run when its context is cancelled, so that client
-	// goroutines can exit cleanly rather than blocking on unregister.
-	quit chan struct{}
+	// done is closed when Run returns, unblocking client goroutines that
+	// would otherwise wait forever on register/unregister.
+	done chan struct{}
 }
 
 // New creates a Hub backed by the given State.
@@ -66,11 +65,10 @@ func New(s *State) *Hub {
 	return &Hub{
 		state:      s,
 		clients:    make(map[*client]struct{}),
-		broadcast:  make(chan []byte, 256),
 		register:   make(chan *client),
 		unregister: make(chan *client),
 		notifyCh:   make(chan struct{}, 1),
-		quit:       make(chan struct{}),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -110,9 +108,7 @@ func (h *Hub) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			// Signal client goroutines and close all send channels.
-			// writePump sends a CloseMessage when its channel is closed.
-			close(h.quit)
+			close(h.done)
 			for c := range h.clients {
 				delete(h.clients, c)
 				close(c.send)
@@ -127,16 +123,6 @@ func (h *Hub) Run(ctx context.Context) {
 			if _, ok := h.clients[c]; ok {
 				delete(h.clients, c)
 				close(c.send)
-			}
-
-		case msg := <-h.broadcast:
-			for c := range h.clients {
-				select {
-				case c.send <- msg:
-				default:
-					delete(h.clients, c)
-					close(c.send)
-				}
 			}
 
 		case <-h.notifyCh:
@@ -197,7 +183,14 @@ func (h *Hub) maybeBroadcastPatch() {
 		log.Printf("hub: marshal patch: %v", err)
 		return
 	}
-	h.broadcast <- msg
+	for c := range h.clients {
+		select {
+		case c.send <- msg:
+		default:
+			delete(h.clients, c)
+			close(c.send)
+		}
+	}
 }
 
 // --- wire protocol helpers ---------------------------------------------------
@@ -236,7 +229,7 @@ func (c *client) readPump() {
 	defer func() {
 		select {
 		case c.hub.unregister <- c:
-		case <-c.hub.quit:
+		case <-c.hub.done:
 		}
 		c.conn.Close()
 	}()
