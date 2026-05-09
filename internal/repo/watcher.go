@@ -1,11 +1,14 @@
 package repo
 
 import (
+	"errors"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -114,11 +117,11 @@ func (w *Watcher) loop() {
 			debounce = nil
 			w.processBatch(batch)
 
-		case _, ok := <-w.fw.Errors:
+		case err, ok := <-w.fw.Errors:
 			if !ok {
 				return
 			}
-			// Swallow watch errors; the city continues with stale data.
+			logFsnotifyError("watcher", err)
 		}
 	}
 }
@@ -218,6 +221,16 @@ func scanFile(root, relPath string, cfg ScanConfig) (model.Building, error) {
 
 	ext := strings.ToLower(path.Ext(relPath))
 	return newBuilding(relPath, ext, loc), nil
+}
+
+// logFsnotifyError logs an fsnotify error at warn level, adding an actionable
+// hint when the inotify watch limit is exhausted (ENOSPC).
+func logFsnotifyError(prefix string, err error) {
+	if errors.Is(err, syscall.ENOSPC) {
+		log.Printf("%s: fsnotify error (inotify watch limit reached — run: sysctl -w fs.inotify.max_user_watches=524288): %v", prefix, err)
+	} else {
+		log.Printf("%s: fsnotify error: %v", prefix, err)
+	}
 }
 
 // errSkip is a sentinel returned by scanFile when the file should be excluded.
