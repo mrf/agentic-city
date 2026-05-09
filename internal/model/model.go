@@ -1,5 +1,18 @@
 package model
 
+// ActivityCap is the maximum number of ActivityEvent entries kept in CityState.Activities.
+// When the cap is reached, the oldest entries are evicted.
+const ActivityCap = 200
+
+// AppendActivity appends ev to activities, evicting the oldest entries when len exceeds ActivityCap.
+func AppendActivity(activities []ActivityEvent, ev ActivityEvent) []ActivityEvent {
+	activities = append(activities, ev)
+	if len(activities) > ActivityCap {
+		activities = activities[len(activities)-ActivityCap:]
+	}
+	return activities
+}
+
 // CityState is the top-level snapshot sent to browser clients.
 type CityState struct {
 	RepoInfo   RepoInfo        `json:"repoInfo"`
