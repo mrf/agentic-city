@@ -36,11 +36,13 @@ var upgrader = websocket.Upgrader{
 type Hub struct {
 	state      *State
 	clients    map[*client]struct{}
-	broadcast  chan []byte
 	register   chan *client
 	unregister chan *client
 	notifyCh   chan struct{}
 	prevJSON   []byte
+	// done is closed when Run returns, unblocking client goroutines that
+	// would otherwise wait forever on register/unregister.
+	done chan struct{}
 }
 
 // New creates a Hub backed by the given State.
@@ -48,10 +50,10 @@ func New(s *State) *Hub {
 	return &Hub{
 		state:      s,
 		clients:    make(map[*client]struct{}),
-		broadcast:  make(chan []byte, 256),
 		register:   make(chan *client),
 		unregister: make(chan *client),
 		notifyCh:   make(chan struct{}, 1),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -91,6 +93,11 @@ func (h *Hub) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			close(h.done)
+			for c := range h.clients {
+				delete(h.clients, c)
+				close(c.send)
+			}
 			return
 
 		case c := <-h.register:
@@ -101,16 +108,6 @@ func (h *Hub) Run(ctx context.Context) {
 			if _, ok := h.clients[c]; ok {
 				delete(h.clients, c)
 				close(c.send)
-			}
-
-		case msg := <-h.broadcast:
-			for c := range h.clients {
-				select {
-				case c.send <- msg:
-				default:
-					delete(h.clients, c)
-					close(c.send)
-				}
 			}
 
 		case <-h.notifyCh:
@@ -169,7 +166,14 @@ func (h *Hub) maybeBroadcastPatch() {
 		log.Printf("hub: marshal patch: %v", err)
 		return
 	}
-	h.broadcast <- msg
+	for c := range h.clients {
+		select {
+		case c.send <- msg:
+		default:
+			delete(h.clients, c)
+			close(c.send)
+		}
+	}
 }
 
 // --- wire protocol helpers ---------------------------------------------------
@@ -206,7 +210,10 @@ type client struct {
 // accepted but not yet acted on.
 func (c *client) readPump() {
 	defer func() {
-		c.hub.unregister <- c
+		select {
+		case c.hub.unregister <- c:
+		case <-c.hub.done:
+		}
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
