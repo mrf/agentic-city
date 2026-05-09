@@ -12,7 +12,10 @@ import (
 	"github.com/mferree/agent-city/internal/model"
 )
 
-const debounceDuration = 500 * time.Millisecond
+const (
+	debounceDuration    = 500 * time.Millisecond
+	maxDebounceDuration = 2 * time.Second
+)
 
 // Update is delivered on Watcher.Updates when the debounce window closes.
 type Update struct {
@@ -88,12 +91,23 @@ func (w *Watcher) addDirsRecursively(root string) error {
 }
 
 // loop is the event loop: it reads raw fsnotify events and debounces them into
-// Update batches using a channel-based 500 ms rolling window.
+// Update batches. A rolling 500 ms window quiets rapid bursts, but a hard
+// maxDebounceDuration cap ensures delivery even when events arrive continuously
+// (e.g. a formatter rewriting files in a tight loop).
 func (w *Watcher) loop() {
 	defer close(w.Updates)
 
 	pending := make(map[string]fsnotify.Op)
 	var debounce <-chan time.Time
+	var windowDeadline <-chan time.Time
+
+	flush := func() {
+		batch := pending
+		pending = make(map[string]fsnotify.Op)
+		debounce = nil
+		windowDeadline = nil
+		w.processBatch(batch)
+	}
 
 	for {
 		select {
@@ -105,14 +119,18 @@ func (w *Watcher) loop() {
 				return
 			}
 			pending[event.Name] |= event.Op
-			// Rolling 500 ms window — each new event restarts the timer.
+			// Rolling quiet-period timer — restarted on each new event.
 			debounce = time.After(debounceDuration)
+			// Fixed window timer — started once per batch, never reset.
+			if windowDeadline == nil {
+				windowDeadline = time.After(maxDebounceDuration)
+			}
 
 		case <-debounce:
-			batch := pending
-			pending = make(map[string]fsnotify.Op)
-			debounce = nil
-			w.processBatch(batch)
+			flush()
+
+		case <-windowDeadline:
+			flush()
 
 		case _, ok := <-w.fw.Errors:
 			if !ok {
