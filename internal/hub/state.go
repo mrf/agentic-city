@@ -3,6 +3,7 @@ package hub
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -18,28 +19,75 @@ type JSONPatch struct {
 
 // State is a thread-safe holder for the current CityState.
 // It implements api.StateProvider.
+//
+// It caches pre-marshaled JSON on every write and tracks a dirty flag so the
+// hub's broadcast loop can skip no-op ticks entirely without re-marshaling.
 type State struct {
-	mu    sync.RWMutex
-	state model.CityState
+	mu        sync.RWMutex
+	state     model.CityState
+	stateJSON []byte // pre-serialized; updated by SetState
+	dirty     bool   // true until consumeStateJSON clears it
 }
 
 // NewState returns a State initialised with s.
+// The initial dirty flag is true so the first broadcast delivers a snapshot.
 func NewState(s model.CityState) *State {
-	return &State{state: s}
+	j, _ := json.Marshal(s)
+	return &State{state: s, stateJSON: j, dirty: true}
 }
 
-// GetState returns a copy of the current CityState. Thread-safe.
+// GetState returns a deep copy of the current CityState. Thread-safe.
+//
+// Slice fields are independently allocated so callers cannot inadvertently
+// mutate the backing arrays held inside State (data-race safety).
 func (s *State) GetState() model.CityState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.state
+	return deepCopyState(s.state)
 }
 
-// SetState replaces the current CityState. Thread-safe.
+// SetState replaces the current CityState and pre-marshals its JSON
+// representation. Thread-safe.
 func (s *State) SetState(next model.CityState) {
+	j, _ := json.Marshal(next)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state = next
+	s.stateJSON = j
+	s.dirty = true
+}
+
+// getStateJSON returns the pre-marshaled JSON without modifying the dirty flag.
+// Safe for read paths (e.g. seeding prevJSON on first connect) that must not
+// interfere with the broadcast loop's change detection.
+func (s *State) getStateJSON() []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.stateJSON
+}
+
+// consumeStateJSON returns the pre-marshaled JSON and whether the state has
+// changed since the last call, atomically clearing the dirty flag.
+// Called exclusively from the Hub's Run goroutine.
+func (s *State) consumeStateJSON() ([]byte, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	dirty := s.dirty
+	s.dirty = false
+	return s.stateJSON, dirty
+}
+
+// deepCopyState returns a copy of cs whose slice fields own independent backing
+// arrays. All element types are value types, so a shallow clone of each slice
+// is sufficient. slices.Clone returns nil for nil input, avoiding needless
+// allocations for unpopulated fields.
+func deepCopyState(cs model.CityState) model.CityState {
+	cs.Districts = slices.Clone(cs.Districts)
+	cs.Buildings = slices.Clone(cs.Buildings)
+	cs.Roads = slices.Clone(cs.Roads)
+	cs.Agents = slices.Clone(cs.Agents)
+	cs.Activities = slices.Clone(cs.Activities)
+	return cs
 }
 
 // Diff computes RFC 6902 JSON Patch operations transforming oldJSON into newJSON.
@@ -108,10 +156,10 @@ func diffValues(path string, old, curr any, patches *[]JSONPatch) {
 	}
 }
 
+// primitiveEqual compares two JSON primitive values (float64, string, bool, nil).
+// Safe because diffValues only reaches the default branch for these types.
 func primitiveEqual(a, b any) bool {
-	aj, _ := json.Marshal(a)
-	bj, _ := json.Marshal(b)
-	return string(aj) == string(bj)
+	return a == b
 }
 
 // ptrEscape applies RFC 6901 JSON Pointer escape sequences (~0 for ~, ~1 for /).

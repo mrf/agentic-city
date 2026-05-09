@@ -132,7 +132,7 @@ func (h *Hub) sendFull(c *client) {
 		return
 	}
 	if len(h.prevJSON) == 0 {
-		h.prevJSON, _ = json.Marshal(state)
+		h.prevJSON = h.state.getStateJSON()
 	}
 	select {
 	case c.send <- msg:
@@ -142,19 +142,21 @@ func (h *Hub) sendFull(c *client) {
 	}
 }
 
-// maybeBroadcastPatch fetches the current state, diffs it against the
-// previous snapshot, and broadcasts a state.patch message if anything changed.
+// maybeBroadcastPatch checks whether the state has changed since the last
+// broadcast and, if so, diffs it and enqueues a state.patch message.
+//
+// The dirty flag on State is consumed first; if it is clear, the tick is a
+// no-op and no JSON work is done at all.
 func (h *Hub) maybeBroadcastPatch() {
 	if len(h.clients) == 0 {
 		return
 	}
-	currJSON, err := json.Marshal(h.state.GetState())
-	if err != nil {
-		log.Printf("hub: marshal state: %v", err)
-		return
+	currJSON, dirty := h.state.consumeStateJSON()
+	if !dirty {
+		return // state unchanged since last tick
 	}
 	if bytes.Equal(currJSON, h.prevJSON) {
-		return
+		return // content identical (e.g. SetState called with same data)
 	}
 
 	patches := Diff(h.prevJSON, currJSON)
