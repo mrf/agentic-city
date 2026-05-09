@@ -117,8 +117,13 @@ var extensionToLanguage = map[string]string{
 //
 // Only ID, DistrictID, Label, Language, LOC, Coverage, and Status are populated.
 // Layout fields (GX/GY/GW/GH/GZ) are left at zero for the layout engine to fill.
+//
+// EnableDotGitCommonDir is set so ScanRepo works correctly inside git worktrees.
 func ScanRepo(repoPath string, cfg ScanConfig) ([]model.Building, error) {
-	r, err := git.PlainOpen(repoPath)
+	r, err := git.PlainOpenWithOptions(repoPath, &git.PlainOpenOptions{
+		DetectDotGit:          true,
+		EnableDotGitCommonDir: true,
+	})
 	if err != nil {
 		return nil, err
 	}

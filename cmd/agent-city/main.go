@@ -9,39 +9,66 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/mferree/agent-city/internal/api"
+	"github.com/mferree/agent-city/internal/city"
+	"github.com/mferree/agent-city/internal/deps"
 	"github.com/mferree/agent-city/internal/hub"
 	"github.com/mferree/agent-city/internal/model"
+	"github.com/mferree/agent-city/internal/repo"
 	agentcityweb "github.com/mferree/agent-city/web"
 )
 
 func main() {
 	demo := flag.Bool("demo", false, "Run in demo mode with synthetic city data")
 	addr := flag.String("addr", ":8080", "HTTP listen address")
+	repoPath := flag.String("repo", ".", "Path to the git repository to visualise")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	mux := http.NewServeMux()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	var cityState *hub.State
+	var buildCfg city.BuildConfig
+
 	if *demo {
 		s := generateDemoState()
 		cityState = hub.NewState(s)
 		log.Printf("demo mode: %d districts, %d buildings, %d agents",
 			len(s.Districts), len(s.Buildings), len(s.Agents))
 	} else {
-		cityState = hub.NewState(model.CityState{Timestamp: time.Now().UnixMilli()})
-		log.Printf("live mode: repo scanning not yet implemented — serving empty state")
+		buildCfg = city.BuildConfig{
+			DepsCfg: deps.Config{ModuleName: readModuleName(*repoPath)},
+		}
+
+		initial, err := city.BuildState(*repoPath, buildCfg)
+		if err != nil {
+			log.Printf("live mode: initial scan failed (%v) — serving empty state", err)
+			initial = model.CityState{Timestamp: time.Now().UnixMilli()}
+		} else {
+			log.Printf("live mode: scanned %d buildings in %d districts",
+				len(initial.Buildings), len(initial.Districts))
+		}
+
+		cityState = hub.NewState(initial)
 	}
 
 	h := hub.New(cityState)
 	go h.Run(ctx)
+
+	if !*demo {
+		go runWatcher(ctx, *repoPath, buildCfg, cityState, h)
+	}
 
 	api.New(cityState).WithWSHandler(h.ServeWS).Register(mux)
 
@@ -347,4 +374,74 @@ func makeDemoActivities() []model.ActivityEvent {
 
 func clamp(v, lo, hi float64) float64 {
 	return max(lo, min(hi, v))
+}
+
+// runWatcher watches repoPath for file changes and applies them to cityState,
+// then calls h.Notify() so the hub broadcasts a patch to all connected clients.
+//
+// Structural changes (creates/deletes/renames) trigger a full rescan to keep
+// the layout consistent. Content-only changes are merged incrementally.
+// Agents and Activities are always preserved across refreshes.
+func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, state *hub.State, h *hub.Hub) {
+	w, err := repo.NewWatcher(repoPath, cfg.ScanCfg)
+	if err != nil {
+		log.Printf("watcher: init failed: %v", err)
+		return
+	}
+	if err := w.Start(); err != nil {
+		log.Printf("watcher: start failed: %v", err)
+		return
+	}
+	defer w.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case update, ok := <-w.Updates:
+			if !ok {
+				return
+			}
+
+			if update.HasStructural {
+				// A file was created, deleted, or renamed — full rescan to
+				// recompute layout and dependency graph.
+				next, err := city.BuildState(repoPath, cfg)
+				if err != nil {
+					log.Printf("watcher: full rescan failed: %v", err)
+					continue
+				}
+				curr := state.GetState()
+				next.Agents = curr.Agents
+				next.Activities = curr.Activities
+				state.SetState(next)
+				log.Printf("watcher: full rescan — %d buildings", len(next.Buildings))
+			} else {
+				// Content-only changes — merge incrementally.
+				curr := state.GetState()
+				next := city.MergeBuildings(curr, update.Buildings)
+				state.SetState(next)
+			}
+
+			if h != nil {
+				h.Notify()
+			}
+		}
+	}
+}
+
+// readModuleName reads the Go module name from go.mod at repoRoot.
+// Returns an empty string if go.mod is missing or malformed.
+func readModuleName(repoRoot string) string {
+	data, err := os.ReadFile(filepath.Join(repoRoot, "go.mod"))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if after, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+			return strings.TrimSpace(after)
+		}
+	}
+	return ""
 }
