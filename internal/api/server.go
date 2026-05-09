@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 
-	"github.com/gorilla/websocket"
 	"github.com/mferree/agent-city/internal/model"
 )
 
@@ -16,17 +15,11 @@ type StateProvider interface {
 type Server struct {
 	state     StateProvider
 	wsHandler http.HandlerFunc
-	upgrader  websocket.Upgrader
 }
 
 // New creates an API Server backed by the given StateProvider.
 func New(state StateProvider) *Server {
-	return &Server{
-		state: state,
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
-		},
-	}
+	return &Server{state: state}
 }
 
 // WithWSHandler replaces the default WebSocket stub with h (e.g. hub.Hub.ServeWS).
