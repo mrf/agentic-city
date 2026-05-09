@@ -88,6 +88,11 @@ func diffValues(path string, old, curr any, patches *[]JSONPatch) {
 			*patches = append(*patches, JSONPatch{Op: "replace", Path: path, Value: curr})
 			return
 		}
+		// Try keyed diffing for arrays of objects with "id" fields.
+		if diffKeyedArray(path, oldSlice, currV, patches) {
+			return
+		}
+		// Fall back to positional diffing.
 		minLen := min(len(oldSlice), len(currV))
 		for i := 0; i < minLen; i++ {
 			diffValues(fmt.Sprintf("%s/%d", path, i), oldSlice[i], currV[i], patches)
@@ -109,9 +114,131 @@ func diffValues(path string, old, curr any, patches *[]JSONPatch) {
 }
 
 func primitiveEqual(a, b any) bool {
-	aj, _ := json.Marshal(a)
-	bj, _ := json.Marshal(b)
-	return string(aj) == string(bj)
+	switch av := a.(type) {
+	case string:
+		bv, ok := b.(string)
+		return ok && av == bv
+	case float64:
+		bv, ok := b.(float64)
+		return ok && av == bv
+	case bool:
+		bv, ok := b.(bool)
+		return ok && av == bv
+	case nil:
+		return b == nil
+	default:
+		return false
+	}
+}
+
+// diffKeyedArray attempts keyed diffing on arrays of objects that all have an
+// "id" field. Returns true if keyed diffing was applied, false to fall back to
+// positional diffing.
+//
+// Keyed diffing matches elements by ID instead of position, so inserting an
+// element at index 0 generates one add op instead of N replace ops.
+//
+// Structural operations are ordered for correct sequential RFC 6902 application:
+//  1. Removes: highest old index first (preserves lower indices)
+//  2. Adds: lowest new index first (shifts correctly as each is applied)
+//  3. Property diffs: at final (new) indices
+func diffKeyedArray(path string, old, curr []any, patches *[]JSONPatch) bool {
+	oldIDs, oldByID := extractIDMap(old)
+	currIDs, currByID := extractIDMap(curr)
+	if oldIDs == nil || currIDs == nil {
+		return false
+	}
+
+	// Check that the relative order of common elements is preserved.
+	// If not, elements were reordered — replace the whole array.
+	commonOld := filterPresent(oldIDs, currByID)
+	commonCurr := filterPresent(currIDs, oldByID)
+	if len(commonOld) != len(commonCurr) {
+		// Should not happen if maps are consistent, but guard anyway.
+		*patches = append(*patches, JSONPatch{Op: "replace", Path: path, Value: curr})
+		return true
+	}
+	for i := range commonOld {
+		if commonOld[i] != commonCurr[i] {
+			*patches = append(*patches, JSONPatch{Op: "replace", Path: path, Value: curr})
+			return true
+		}
+	}
+
+	// Phase 1: Remove deleted elements (highest old index first).
+	for i := len(old) - 1; i >= 0; i-- {
+		id := oldIDs[i]
+		if _, exists := currByID[id]; !exists {
+			*patches = append(*patches, JSONPatch{
+				Op:   "remove",
+				Path: fmt.Sprintf("%s/%d", path, i),
+			})
+		}
+	}
+
+	// Phase 2: Add new elements (lowest new index first).
+	for i, id := range currIDs {
+		if _, exists := oldByID[id]; !exists {
+			*patches = append(*patches, JSONPatch{
+				Op:    "add",
+				Path:  fmt.Sprintf("%s/%d", path, i),
+				Value: curr[i],
+			})
+		}
+	}
+
+	// Phase 3: Diff common elements at their new indices.
+	for i, id := range currIDs {
+		if oldVal, exists := oldByID[id]; exists {
+			diffValues(fmt.Sprintf("%s/%d", path, i), oldVal, curr[i], patches)
+		}
+	}
+
+	return true
+}
+
+// extractIDMap extracts "id" string values from an array of maps.
+// Returns (ids, byID) where ids is the ordered slice of IDs and byID maps
+// each ID to its value. Returns (nil, nil) if any element is not a map with
+// a string "id" field, or if duplicate IDs are found.
+func extractIDMap(arr []any) ([]string, map[string]any) {
+	if len(arr) == 0 {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(arr))
+	byID := make(map[string]any, len(arr))
+	for _, elem := range arr {
+		m, ok := elem.(map[string]any)
+		if !ok {
+			return nil, nil
+		}
+		idVal, ok := m["id"]
+		if !ok {
+			return nil, nil
+		}
+		id, ok := idVal.(string)
+		if !ok {
+			return nil, nil
+		}
+		if _, dup := byID[id]; dup {
+			return nil, nil
+		}
+		ids = append(ids, id)
+		byID[id] = elem
+	}
+	return ids, byID
+}
+
+// filterPresent returns the subset of ids that exist in the lookup map,
+// preserving their original order.
+func filterPresent(ids []string, lookup map[string]any) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := lookup[id]; ok {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // ptrEscape applies RFC 6901 JSON Pointer escape sequences (~0 for ~, ~1 for /).
