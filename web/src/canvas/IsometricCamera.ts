@@ -10,7 +10,7 @@ export interface CameraState {
 }
 
 const MIN_SCALE = 0.15;
-const MAX_SCALE = 10.0;
+const MAX_SCALE = 40.0;
 const PAN_SPEED = 20; // pixels per key press
 
 export class IsometricCamera {
