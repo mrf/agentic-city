@@ -45,11 +45,24 @@ function drawDistrict(
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Label centered in the diamond
+  // Label along the bottom edge (bl→br), angled to match the isometric surface
+  const edgeAngle = Math.atan2(br[1] - bl[1], br[0] - bl[0]); // ≈ -30°
+  const mx = (bl[0] + br[0]) / 2;
+  const my = (bl[1] + br[1]) / 2;
+
+  // Nudge the label 14px inward toward the district center to clear the dashed line
   const center = camera.project(d.gx + d.gw / 2, d.gy + d.gh / 2);
+  const toCenter = [center[0] - mx, center[1] - my] as const;
+  const dist = Math.hypot(toCenter[0], toCenter[1]);
+  const inset = dist > 0 ? 14 / dist : 0;
+
+  ctx.save();
+  ctx.translate(mx + toCenter[0] * inset, my + toCenter[1] * inset);
+  ctx.rotate(edgeAngle);
   ctx.font = '10px "JetBrains Mono", monospace';
   ctx.fillStyle = BASE01;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(d.label, center[0], center[1]);
+  ctx.fillText(d.label, 0, 0);
+  ctx.restore();
 }
