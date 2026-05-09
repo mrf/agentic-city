@@ -163,10 +163,11 @@ func (w *MetricsWatcher) loop() {
 				// Drop if consumer is not keeping up; watcher must not block.
 			}
 
-		case _, ok := <-w.fw.Errors:
+		case err, ok := <-w.fw.Errors:
 			if !ok {
 				return
 			}
+			logFsnotifyError("metrics watcher", err)
 		}
 	}
 }
