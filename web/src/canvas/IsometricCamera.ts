@@ -89,6 +89,48 @@ export class IsometricCamera {
     this.oy = height / 3;
   }
 
+  /**
+   * Fit camera so the given 3D grid bounding box fills `padding` fraction of
+   * the viewport. Safe to call with an empty box (returns early).
+   */
+  fitToGridBounds(
+    minGX: number, minGY: number,
+    maxGX: number, maxGY: number,
+    maxGZ: number,
+    viewW: number, viewH: number,
+    padding = 0.85,
+  ): void {
+    // Project all 8 corners at unit scale (no offset) to find screen-space extent.
+    const corners = [
+      [minGX, minGY, 0],     [maxGX, minGY, 0],
+      [maxGX, maxGY, 0],     [minGX, maxGY, 0],
+      [minGX, minGY, maxGZ], [maxGX, minGY, maxGZ],
+      [maxGX, maxGY, maxGZ], [minGX, maxGY, maxGZ],
+    ].map(([gx, gy, gz]) => [
+      gx * COS30 + gy * COS30,
+      gx * -SIN30 + gy * SIN30 - gz * 0.55,
+    ]);
+
+    const xs = corners.map((p) => p[0]);
+    const ys = corners.map((p) => p[1]);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    const bboxW = maxX - minX;
+    const bboxH = maxY - minY;
+    if (bboxW === 0 || bboxH === 0) return;
+
+    const fitScale = Math.min(
+      (viewW * padding) / bboxW,
+      (viewH * padding) / bboxH,
+    );
+    this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, fitScale));
+    this.ox = viewW / 2 - this.scale * (minX + maxX) / 2;
+    this.oy = viewH / 2 - this.scale * (minY + maxY) / 2;
+  }
+
   getState(): CameraState {
     return { ox: this.ox, oy: this.oy, scale: this.scale };
   }

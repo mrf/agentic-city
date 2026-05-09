@@ -37,6 +37,7 @@ export class CityRenderer {
   camera: IsometricCamera;
   private city: CityState | null = null;
   private animManager = new AnimationManager();
+  private hasFitted = false;
   showLabels = true;
   showRoads = false;
   cursorBuildingId: string | null = null;
@@ -52,6 +53,44 @@ export class CityRenderer {
 
   setCity(city: CityState): void {
     this.city = city;
+    if (!this.hasFitted && (city.buildings.length > 0 || city.districts.length > 0)) {
+      this.hasFitted = true;
+      const dpr = window.devicePixelRatio || 1;
+      this.fitCity(this.canvas.width / dpr, this.canvas.height / dpr);
+    }
+  }
+
+  /**
+   * Fit camera to show all buildings and districts in the given viewport.
+   * Computes the grid bounding box and delegates to camera.fitToGridBounds().
+   * No-ops on empty city.
+   */
+  fitCity(viewW: number, viewH: number): void {
+    if (!this.city) return;
+    const { buildings, districts } = this.city;
+
+    let minGX = Infinity, minGY = Infinity;
+    let maxGX = -Infinity, maxGY = -Infinity;
+    let maxGZ = 0;
+
+    for (const b of buildings) {
+      minGX = Math.min(minGX, b.gx);
+      minGY = Math.min(minGY, b.gy);
+      maxGX = Math.max(maxGX, b.gx + b.gw);
+      maxGY = Math.max(maxGY, b.gy + b.gh);
+      maxGZ = Math.max(maxGZ, b.gz);
+    }
+
+    for (const d of districts) {
+      minGX = Math.min(minGX, d.gx);
+      minGY = Math.min(minGY, d.gy);
+      maxGX = Math.max(maxGX, d.gx + d.gw);
+      maxGY = Math.max(maxGY, d.gy + d.gh);
+    }
+
+    if (!isFinite(minGX)) return; // empty city
+
+    this.camera.fitToGridBounds(minGX, minGY, maxGX, maxGY, maxGZ, viewW, viewH);
   }
 
   resize(width: number, height: number): void {
@@ -112,7 +151,7 @@ export class CityRenderer {
   private drawGrid(w: number, h: number): void {
     const { ctx } = this;
 
-    const strokeGrid = (step: number, alpha: number): void => {
+    function strokeGrid(step: number, alpha: number): void {
       ctx.strokeStyle = `rgba(138,144,151,${alpha})`;
       ctx.lineWidth = 0.5;
       ctx.beginPath();
@@ -125,7 +164,7 @@ export class CityRenderer {
         ctx.lineTo(w, y);
       }
       ctx.stroke();
-    };
+    }
 
     strokeGrid(12, 0.035); // Fine grid
     strokeGrid(60, 0.07);  // Coarse grid
