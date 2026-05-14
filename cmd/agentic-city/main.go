@@ -152,7 +152,7 @@ func generateDemoState() model.CityState {
 
 func makeDemoDistricts() []model.District {
 	return []model.District{
-		{ID: "cmd/agent-city", Label: "CMD/", ParentID: "", GX: 0, GY: 0, GW: 10, GH: 8},
+		{ID: "cmd/agentic-city", Label: "CMD/", ParentID: "", GX: 0, GY: 0, GW: 10, GH: 8},
 		{ID: "internal/model", Label: "MODEL/", ParentID: "internal", GX: 10, GY: 0, GW: 8, GH: 8},
 		{ID: "internal/agents", Label: "AGENTS/", ParentID: "internal", GX: 18, GY: 0, GW: 12, GH: 10},
 		{ID: "internal/layout", Label: "LAYOUT/", ParentID: "internal", GX: 0, GY: 8, GW: 14, GH: 10},
@@ -169,9 +169,9 @@ type demoFile struct {
 
 func makeDemoBuildings(rng *rand.Rand, districts []model.District) []model.Building {
 	files := []demoFile{
-		// cmd/agent-city
-		{"main.go", "cmd/agent-city", "go", 180},
-		{"server.go", "cmd/agent-city", "go", 95},
+		// cmd/agentic-city
+		{"main.go", "cmd/agentic-city", "go", 180},
+		{"server.go", "cmd/agentic-city", "go", 95},
 
 		// internal/model
 		{"model.go", "internal/model", "go", 120},

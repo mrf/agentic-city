@@ -61,7 +61,7 @@ Visual direction comes from the prototypes in `code-sim/`, primarily `sketch-A-v
 ### Package Layout
 
 ```
-cmd/agent-city/main.go               — entry point, wire services, embed frontend
+cmd/agentic-city/main.go             — entry point, wire services, embed frontend
 
 internal/
   model/model.go                      — core data types
@@ -743,8 +743,8 @@ Vite dev server on :5173 proxies `/api/*` and `/ws` to Go backend on :8080.
 
 ```bash
 cd web && npm run build
-go build -o bin/agent-city ./cmd/agent-city
-./bin/agent-city --repo=/path/to/repo
+go build -o bin/agentic-city ./cmd/agentic-city
+./bin/agentic-city --repo=/path/to/repo
 ```
 
 Go binary embeds `web/dist/` via `embed.FS`.
@@ -754,8 +754,8 @@ Go binary embeds `web/dist/` via `embed.FS`.
 ## Project Structure
 
 ```
-agent-city/
-  cmd/agent-city/main.go
+agentic-city/
+  cmd/agentic-city/main.go
   internal/
     model/  repo/  deps/  agents/  layout/  hub/  api/
   web/
@@ -771,7 +771,7 @@ Depends on `github.com/mrf/agentwatch` (Go library, imported via `go.mod`).
 
 ### Demo Mode
 
-`./agent-city --demo` starts with a synthetic city and simulated agents for frontend
+`./agentic-city --demo` starts with a synthetic city and simulated agents for frontend
 development without requiring a real repo or live agent sessions. Generates:
 
 - 5 districts, ~30 buildings with randomized LOC/coverage/language/status

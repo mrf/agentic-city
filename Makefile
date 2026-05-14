@@ -16,7 +16,7 @@ dev:
 	cd web && npm run dev
 
 run: build
-	go run ./cmd/agent-city
+	go run ./cmd/agentic-city
 
 clean:
 	rm -rf web/dist

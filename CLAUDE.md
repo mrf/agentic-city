@@ -6,7 +6,7 @@ binary. Agents monitored via the `agentwatch` library (in-process, no sidecar ne
 ## Quick orientation
 
 ```
-cmd/agent-city/main.go          entry point, wire services, embed frontend
+cmd/agentic-city/main.go        entry point, wire services, embed frontend
 internal/
   model/model.go                core data types (CityState, Building, Agent, …)
   repo/                         Git tree walk, file watcher (fsnotify, 500ms debounce)
@@ -28,7 +28,7 @@ code-sim/                       design reference sketches — read-only, do not 
 
 ```bash
 # Development (two terminals)
-go run ./cmd/agent-city --repo=/path/to/repo   # backend on :8080
+go run ./cmd/agentic-city --repo=/path/to/repo  # backend on :8080
 cd web && npm run dev                           # Vite dev server on :5173 (proxies /api /ws)
 
 # Full dev via Makefile
@@ -46,10 +46,10 @@ cd web && npm run build     # tsc + vite build
 cd web && npm run preview   # preview production build
 ```
 
-Single production binary: `go build -o bin/agent-city ./cmd/agent-city`. Embeds
-`web/dist/` via `embed.FS`. Run with `./bin/agent-city --repo=/path/to/repo`.
+Single production binary: `go build -o bin/agentic-city ./cmd/agentic-city`. Embeds
+`web/dist/` via `embed.FS`. Run with `./bin/agentic-city --repo=/path/to/repo`.
 
-Demo mode (no real repo needed): `./bin/agent-city --demo`
+Demo mode (no real repo needed): `./bin/agentic-city --demo`
 
 ---
 
