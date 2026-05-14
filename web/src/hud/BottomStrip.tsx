@@ -92,8 +92,6 @@ export function BottomStrip(): JSX.Element {
       <span style={S.sep}>·</span>
       <Hint keys={['Enter']} label="select" />
       <span style={S.sep}>·</span>
-      <Hint keys={['[']} label="left" />
-      <Hint keys={[']']} label="right" />
       <Hint keys={['Esc']} label="city" />
       <span style={S.sep}>·</span>
       <Hint keys={['R']} label="roads" color={activeColor(showRoads)} />
