@@ -795,13 +795,24 @@ function project(gx: number, gy: number, gz = 0): [number, number] {
 
 ```bash
 # Terminal 1 — backend
-go run ./cmd/agent-city --repo=/path/to/repo
+go run ./cmd/agentic-city --repo=/path/to/repo   # serves on :8080
 
 # Terminal 2 — frontend
-cd web && npm run dev
+cd web && npm run dev                           # Vite on :5173, proxies /api /ws
 ```
 
 Vite dev server on :5173 proxies `/api/*` and `/ws` to Go backend on :8080.
+
+**Makefile targets:**
+
+```bash
+make run     # build (web + Go) then start server
+make build   # make web + go build ./...
+make web     # cd web && npm run build
+make test    # go test ./...
+make lint    # go vet ./...
+make clean   # rm web/dist + go clean
+```
 
 **Production:** single binary.
 
@@ -809,6 +820,8 @@ Vite dev server on :5173 proxies `/api/*` and `/ws` to Go backend on :8080.
 cd web && npm run build
 go build -o bin/agentic-city ./cmd/agentic-city
 ./bin/agentic-city --repo=/path/to/repo
+# Demo mode (no real repo needed):
+./bin/agentic-city --demo
 ```
 
 Go binary embeds `web/dist/` via `embed.FS`.
