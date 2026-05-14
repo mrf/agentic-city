@@ -53,10 +53,8 @@ const CATEGORIES: ShortcutCategory[] = [
     ],
   },
   {
-    title: 'Focus Zones',
+    title: 'Selection',
     entries: [
-      { keys: ['['], label: 'Left panel' },
-      { keys: [']'], label: 'Right panel' },
       { keys: ['Esc'], label: 'Return to city / deselect' },
       { keys: ['Backspace'], label: 'Return to city' },
     ],

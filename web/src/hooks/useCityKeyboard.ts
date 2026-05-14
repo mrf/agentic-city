@@ -9,7 +9,7 @@
 import { useEffect, useRef } from 'react';
 import { useCityStore } from '../store/cityStore';
 import { useUiStore } from '../store/uiStore';
-import type { Building, Agent } from '../store/cityStore';
+import type { Building } from '../store/cityStore';
 import type { CityRenderer } from '../canvas/CityRenderer';
 import type { IsometricCamera } from '../canvas/IsometricCamera';
 
@@ -163,10 +163,6 @@ export function useCityKeyboard(
         setZoom(cam.scale);
         setCamera(cam.ox, cam.oy);
       };
-
-      // --- Focus-zone switching ---
-      if (e.key === '[') { setFocusZone('left'); e.preventDefault(); return; }
-      if (e.key === ']') { setFocusZone('right'); e.preventDefault(); return; }
 
       if (e.key === 'Escape') {
         if (inspectedAgentId) {
