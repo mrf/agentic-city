@@ -76,6 +76,8 @@ internal/
     monitor.go                        — agentwatch monitor setup, source config, event sink bridge
     spawner.go                        — Phase 2: create worktree + tmux + claude session
     prompts.go                        — Phase 2: role → prompt template generation
+  city/
+    builder.go                        — BuildState() full scan→layout→deps pipeline; MergeBuildings() incremental updates; GatherRepoInfo() git metadata
   layout/
     treemap.go                        — squarified treemap for district placement
     packer.go                         — shelf-pack buildings within districts
