@@ -4,6 +4,14 @@
 
 Manage AI coding agents like a SimCity mayor. Buildings are files, districts are directories, UFO agents are your running Claude/Codex/Gemini sessions.
 
+Agent City turns your codebase into a living isometric city. File sizes determine building heights, directory structure defines districts, and each active AI coding session appears as a UFO flying overhead. Changes in the repo — new files, edits, agent activity — flow in real-time over WebSockets so you always see what's happening and where.
+
+**Status:** Phase 1 (see the city) is complete. Phase 2 (dispatch and control agents from the UI) is in progress.
+
+## Learn More
+
+Architecture, design decisions, and the full keyboard binding table are in **[DESIGN.md](DESIGN.md)**.
+
 ![Agent City screenshot — isometric city with UFO agents flying overhead](docs/screenshot.png)
 
 ## Quick Start
