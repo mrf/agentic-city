@@ -3,6 +3,10 @@ import { useCityStore } from '../store/cityStore';
 import { useUiStore } from '../store/uiStore';
 import { sol, hudBase, BOTTOM_STRIP_H } from './palette';
 
+function activeColor(on: boolean): string {
+  return on ? sol.cyan : sol.base00;
+}
+
 const S: Record<string, CSSProperties> = {
   strip: {
     ...hudBase,
@@ -61,13 +65,13 @@ function Key({ k }: { k: string }): JSX.Element {
   return <span style={S.key}>{k}</span>;
 }
 
-function Hint({ keys, label }: { keys: string[]; label: string }): JSX.Element {
+function Hint({ keys, label, color }: { keys: string[]; label: string; color?: string }): JSX.Element {
   return (
     <span style={S.hint}>
       {keys.map((k, i) => (
         <Key key={i} k={k} />
       ))}
-      <span>{label}</span>
+      <span style={color ? { color } : undefined}>{label}</span>
     </span>
   );
 }
@@ -75,6 +79,10 @@ function Hint({ keys, label }: { keys: string[]; label: string }): JSX.Element {
 export function BottomStrip(): JSX.Element {
   const activities = useCityStore((s) => s.city.activities);
   const focusZone = useUiStore((s) => s.focusZone);
+  const showRoads = useUiStore((s) => s.showRoads);
+  const showLabels = useUiStore((s) => s.showLabels);
+  const showMinimap = useUiStore((s) => s.showMinimap);
+  const highContrast = useUiStore((s) => s.highContrast);
 
   const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null;
 
@@ -88,10 +96,10 @@ export function BottomStrip(): JSX.Element {
       <Hint keys={[']']} label="right" />
       <Hint keys={['Esc']} label="city" />
       <span style={S.sep}>·</span>
-      <Hint keys={['R']} label="roads" />
-      <Hint keys={['N']} label="labels" />
-      <Hint keys={['M']} label="minimap" />
-      <Hint keys={['C']} label="contrast" />
+      <Hint keys={['R']} label="roads" color={activeColor(showRoads)} />
+      <Hint keys={['N']} label="labels" color={activeColor(showLabels)} />
+      <Hint keys={['M']} label="minimap" color={activeColor(showMinimap)} />
+      <Hint keys={['C']} label="contrast" color={activeColor(highContrast)} />
       <span style={S.sep}>·</span>
       <Hint keys={['W', 'A', 'S', 'D']} label="pan" />
       <Hint keys={['+', '−']} label="zoom" />
