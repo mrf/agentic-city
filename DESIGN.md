@@ -785,7 +785,7 @@ function project(gx: number, gy: number, gz = 0): [number, number] {
 
 ```bash
 # Terminal 1 — backend
-make dev REPO=/path/to/target/repo
+go run ./cmd/agent-city --repo=/path/to/repo
 
 # Terminal 2 — frontend
 cd web && npm run dev
