@@ -5,6 +5,8 @@ import { RightRail } from './RightRail';
 import { BottomStrip } from './BottomStrip';
 import { ShortcutOverlay } from './ShortcutOverlay';
 import { Minimap } from './Minimap';
+import { DispatchWizard } from '../orchestration/DispatchWizard';
+import { CommandPalette } from '../orchestration/CommandPalette';
 
 export function HudOverlay(): JSX.Element {
   const highContrast = useUiStore((s) => s.highContrast);
@@ -25,6 +27,8 @@ export function HudOverlay(): JSX.Element {
       </div>
       <ShortcutOverlay />
       <Minimap />
+      <DispatchWizard />
+      <CommandPalette />
     </>
   );
 }

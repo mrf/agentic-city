@@ -75,6 +75,7 @@ function Hint({ keys, label }: { keys: string[]; label: string }): JSX.Element {
 export function BottomStrip(): JSX.Element {
   const activities = useCityStore((s) => s.city.activities);
   const focusZone = useUiStore((s) => s.focusZone);
+  const phase2 = useUiStore((s) => s.phase2);
 
   const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null;
 
@@ -97,6 +98,13 @@ export function BottomStrip(): JSX.Element {
       <Hint keys={['+', '−']} label="zoom" />
       <span style={S.sep}>·</span>
       <Hint keys={['?']} label="shortcuts" />
+      {phase2 && (
+        <>
+          <span style={S.sep}>·</span>
+          <Hint keys={['D']} label="dispatch" />
+          <Hint keys={['⌘K']} label="palette" />
+        </>
+      )}
 
       <div style={S.spacer} />
 

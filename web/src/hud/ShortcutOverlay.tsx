@@ -69,6 +69,19 @@ const CATEGORIES: ShortcutCategory[] = [
   },
 ];
 
+const DISPATCH_SHORTCUTS: ShortcutCategory = {
+  title: 'Dispatch (Phase 2)',
+  entries: [
+    { keys: ['D'], label: 'Open dispatch wizard' },
+    { keys: ['⌘K'], label: 'Command palette' },
+    { keys: ['↑', '↓'], label: 'Navigate list' },
+    { keys: ['Space'], label: 'Toggle selection' },
+    { keys: ['Enter'], label: 'Confirm / advance' },
+    { keys: ['Esc'], label: 'Back / cancel' },
+    { keys: ['Tab'], label: 'Next step' },
+  ],
+};
+
 const S: Record<string, CSSProperties> = {
   backdrop: {
     position: 'fixed',
@@ -191,9 +204,12 @@ function Category({ cat }: { cat: ShortcutCategory }): JSX.Element {
 
 export function ShortcutOverlay(): JSX.Element | null {
   const show = useUiStore((s) => s.showShortcutOverlay);
+  const phase2 = useUiStore((s) => s.phase2);
   const toggleShortcutOverlay = useUiStore((s) => s.toggleShortcutOverlay);
 
   if (!show) return null;
+
+  const allCategories = phase2 ? [...CATEGORIES, DISPATCH_SHORTCUTS] : CATEGORIES;
 
   return (
     <div
@@ -209,7 +225,7 @@ export function ShortcutOverlay(): JSX.Element | null {
           <span style={S.dismiss}>press ? or click outside to close</span>
         </div>
         <div style={S.grid}>
-          {CATEGORIES.map((cat) => (
+          {allCategories.map((cat) => (
             <Category key={cat.title} cat={cat} />
           ))}
         </div>
