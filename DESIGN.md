@@ -65,17 +65,20 @@ cmd/agent-city/main.go               — entry point, wire services, embed front
 
 internal/
   model/model.go                      — core data types
+  city/
+    builder.go                        — assemble CityState from repo scan + layout + deps
   repo/
     scanner.go                        — Git tree walk, per-file metadata (LOC, language)
     watcher.go                        — fsnotify, 500ms debounce, incremental rescan
+    metrics.go                        — parse coverage/test result files
   deps/
     analyzer.go                       — regex import extraction (TS/JS, Go, Python)
     graph.go                          — adjacency list → Road edges
-  agents/
-    tracker.go                        — agent lifecycle, maps agentwatch sessions to city agents
-    monitor.go                        — agentwatch monitor setup, source config, event sink bridge
-    spawner.go                        — Phase 2: create worktree + tmux + claude session
-    prompts.go                        — Phase 2: role → prompt template generation
+  agents/                             — (planned)
+    tracker.go                        — (planned) agent lifecycle, maps agentwatch sessions to city agents
+    monitor.go                        — (planned) agentwatch monitor setup, source config, event sink bridge
+    spawner.go                        — (planned — Phase 2) create worktree + tmux + claude session
+    prompts.go                        — (planned — Phase 2) role → prompt template generation
   layout/
     treemap.go                        — squarified treemap for district placement
     packer.go                         — shelf-pack buildings within districts
@@ -516,6 +519,7 @@ web/src/
     cityStore.ts                   — Zustand: CityState from backend
     uiStore.ts                     — selection, zoom, camera, dispatch step
     wsMiddleware.ts                — WebSocket connect/reconnect, dispatch
+    sessionPersist.ts              — localStorage persistence (camera, selection, toggles)
 
   canvas/
     CityRenderer.ts                — main rAF loop, draw order orchestration
@@ -528,29 +532,35 @@ web/src/
     HitTester.ts                   — click detection on isometric shapes
 
   hud/
+    HudOverlay.tsx                 — top-level HUD container
     TopBar.tsx                     — repo, branch, SHA, CI, tests
     LeftRail.tsx                   — agent roster + progress bars + dispatch btn
     RightRail.tsx                  — selected building, activity log, stats, minimap
     BottomStrip.tsx                — keyboard shortcuts, status ticker
+    Minimap.tsx                    — minimap overview panel
+    ShortcutOverlay.tsx            — ? keyboard shortcut overlay
+    ScanlineOverlay.tsx            — CRT scan line + vignette effect
+    palette.ts                     — solarized dark color constants
 
-  orchestration/                   — Phase 2: dispatch & control
-    DispatchWizard.tsx             — 3-step flow: scope → role → dispatch (sketch-E)
-    CommandPalette.tsx             — Cmd+K quick-dispatch
-    AlarmOverlay.tsx               — error vignette + rapid-response (sketch-D)
-    ScopeSelector.tsx              — lasso selection, corner brackets, scope summary
-    RoleSelector.tsx               — role picker with descriptions
-    DispatchPreview.tsx            — CLI preview + cost estimate + confirm button
-    BudgetIndicator.tsx            — per-agent token spend, cumulative cost
+  orchestration/                   — (planned — Phase 2) dispatch & control
+    DispatchWizard.tsx             — (planned) 3-step flow: scope → role → dispatch (sketch-E)
+    CommandPalette.tsx             — (planned) Cmd+K quick-dispatch
+    AlarmOverlay.tsx               — (planned) error vignette + rapid-response (sketch-D)
+    ScopeSelector.tsx              — (planned) lasso selection, corner brackets, scope summary
+    RoleSelector.tsx               — (planned) role picker with descriptions
+    DispatchPreview.tsx            — (planned) CLI preview + cost estimate + confirm button
+    BudgetIndicator.tsx            — (planned) per-agent token spend, cumulative cost
 
   hooks/
     useCityKeyboard.ts             — all keyboard bindings, cursor state, focus zones
-    useCameraControls.ts           — pan/zoom from keyboard + pointer
     useAnimationFrame.ts           — rAF hook for canvas
-    useWebSocket.ts                — WS connection lifecycle
+    useSessionPersist.ts           — sync uiStore ↔ localStorage on change
+    useCameraControls.ts           — (planned) pan/zoom from keyboard + pointer
+    useWebSocket.ts                — (planned) WS connection lifecycle
 
-  theme/
-    colors.ts                      — SD palette from sd-helpers.jsx
-    typography.ts                  — font sizes matching prototypes
+  theme/                           — (planned)
+    colors.ts                      — (planned) SD palette from sd-helpers.jsx
+    typography.ts                  — (planned) font sizes matching prototypes
 ```
 
 ### Keyboard Navigation (Phase 1 requirement)
