@@ -4,6 +4,58 @@
 > Buildings are files, districts are directories, UFO agents are AI coding sessions.
 > Phase 1: see the city. Phase 2: run the city.
 
+## Current State (2026-05-14)
+
+Phase 1 is mostly complete. The city renders and updates from live repo data; agentwatch integration is the remaining P1 milestone. Phase 2 is not started.
+
+### Milestone status
+
+| Milestone | Status |
+|-----------|--------|
+| P1.1 — Go binary, demo mode, repo scan, treemap, canvas + keyboard nav | ✅ Complete |
+| P1.2 — File watcher, WebSocket hub, Zustand store, dependency roads | ✅ Complete |
+| P1.3 — Agentwatch integration, UFO rendering, agent roster | ❌ Not started |
+| P1.4 — Full HUD, minimap, shortcut overlay, scanlines, visual polish | ✅ Complete |
+| Phase 2 — Orchestration, dispatch wizard, agent spawning, alarm state | ❌ Not started |
+
+### What actually exists
+
+**Go backend — `internal/`**
+
+| Package | Files present | Notes |
+|---------|---------------|-------|
+| `internal/model/` | `model.go` | ✅ |
+| `internal/repo/` | `scanner.go`, `watcher.go`, `metrics.go` | ✅ |
+| `internal/deps/` | `analyzer.go`, `graph.go` | ✅ |
+| `internal/city/` | `builder.go` | ✅ City-state assembly — not listed in the package layout section below |
+| `internal/layout/` | `engine.go`, `packer.go`, `treemap.go` | ✅ |
+| `internal/hub/` | `hub.go`, `state.go` | ✅ |
+| `internal/api/` | `server.go`, `handlers.go` | ✅ |
+| `internal/agents/` | *(nothing)* | ❌ Not started — agentwatch integration (P1.3) is next |
+
+**Frontend — `web/src/`**
+
+| Path | Status | Notes |
+|------|--------|-------|
+| `canvas/` (all 8 renderers + camera + hittester) | ✅ | |
+| `hud/` (TopBar, LeftRail, RightRail, BottomStrip, Minimap, ShortcutOverlay, ScanlineOverlay, HudOverlay, palette.ts) | ✅ | |
+| `store/` (cityStore, uiStore, wsMiddleware, sessionPersist) | ✅ | |
+| `hooks/useCityKeyboard.ts`, `useAnimationFrame.ts`, `useSessionPersist.ts` | ✅ | |
+| `hooks/useCameraControls.ts` | ❌ | Lives inside `useCityKeyboard.ts`, not a separate file |
+| `hooks/useWebSocket.ts` | ❌ | Lives inside `store/wsMiddleware.ts`, not a separate file |
+| `theme/` | ❌ | Does not exist; palette lives at `hud/palette.ts` |
+| `orchestration/` | ❌ | Phase 2 — not started |
+
+### Key gotchas for agents reading this doc
+
+- **Do not import `internal/agents/`** — the package does not exist yet.
+- **Do not import `web/src/theme/`** — the directory does not exist; use `web/src/hud/palette.ts`.
+- **Do not import `web/src/orchestration/`** — not built; Phase 2 only.
+- **`useCameraControls` and `useWebSocket` are not separate files** — see `useCityKeyboard.ts` and `store/wsMiddleware.ts`.
+- **`internal/city/` exists** (`builder.go`, city-state assembly) but is absent from the package layout section below.
+
+---
+
 ## System Overview
 
 ```
