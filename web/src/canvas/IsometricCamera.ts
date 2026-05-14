@@ -12,6 +12,7 @@ export interface CameraState {
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 40.0;
 const PAN_SPEED = 20; // pixels per key press
+const ZOOM_FACTOR = 1.8; // multiplicative step per keyboard +/- press
 
 export class IsometricCamera {
   ox: number;
@@ -59,25 +60,29 @@ export class IsometricCamera {
     }
   }
 
+  private clampScale(s: number): number {
+    return Math.max(MIN_SCALE, Math.min(MAX_SCALE, s));
+  }
+
   zoom(delta: number): void {
-    this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.scale + delta));
+    this.scale = this.clampScale(this.scale + delta);
   }
 
   /** Zoom centered on a screen point (sx, sy) so that point stays fixed. */
   zoomAt(delta: number, sx: number, sy: number): void {
     const oldScale = this.scale;
-    this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.scale + delta));
+    this.scale = this.clampScale(this.scale + delta);
     const ratio = this.scale / oldScale;
     this.ox = sx - (sx - this.ox) * ratio;
     this.oy = sy - (sy - this.oy) * ratio;
   }
 
   zoomIn(): void {
-    this.zoom(0.1);
+    this.scale = this.clampScale(this.scale * ZOOM_FACTOR);
   }
 
   zoomOut(): void {
-    this.zoom(-0.1);
+    this.scale = this.clampScale(this.scale / ZOOM_FACTOR);
   }
 
   resetZoom(): void {
@@ -126,7 +131,7 @@ export class IsometricCamera {
       (viewW * padding) / bboxW,
       (viewH * padding) / bboxH,
     );
-    this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, fitScale));
+    this.scale = this.clampScale(fitScale);
     this.ox = viewW / 2 - this.scale * (minX + maxX) / 2;
     this.oy = viewH / 2 - this.scale * (minY + maxY) / 2;
   }
