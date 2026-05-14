@@ -12,6 +12,7 @@ internal/
   repo/                         Git tree walk, file watcher (fsnotify, 500ms debounce)
   deps/                         regex import extractor → Road edges
   agents/                       agentwatch monitor setup, session → city-agent mapping
+  city/                         wires repo+layout+deps into BuildState(); MergeBuildings() for incremental updates
   layout/                       squarified treemap + shelf packer
   hub/                          WebSocket hub, state assembly, JSON-patch broadcast
   api/                          HTTP server, REST handlers, WS upgrade
