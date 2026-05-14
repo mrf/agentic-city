@@ -4,8 +4,6 @@
 
 Manage AI coding agents like a SimCity mayor. Buildings are files, districts are directories, UFO agents are your running Claude/Codex/Gemini sessions.
 
-![Agent City screenshot — isometric city with UFO agents flying overhead](docs/screenshot.png)
-
 ## Quick Start
 
 ```bash
