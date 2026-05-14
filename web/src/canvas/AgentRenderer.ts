@@ -88,13 +88,17 @@ export function drawAgents(
 
   const buildMap = new Map<string, Building>(buildings.map((b) => [b.id, b]));
 
+  // City centre in screen space — used to push UFOs outward so they don't
+  // obscure the buildings they are targeting.
+  const cityCenter = computeCityCenterScreen(camera, buildings);
+
   ctx.save();
 
   for (const agent of agents) {
     if (agent.fromId && agent.toId && agent.flyProgress !== undefined) {
       drawFlyingAgent(ctx, camera, agent, buildMap, time, animManager);
     } else if (agent.targetId) {
-      drawHoveringAgent(ctx, camera, agent, buildMap, time, animManager);
+      drawHoveringAgent(ctx, camera, agent, buildMap, cityCenter, time, animManager);
     }
     // Agents with no position data are not drawn
   }
@@ -102,13 +106,37 @@ export function drawAgents(
   ctx.restore();
 }
 
+// ── City centre helper ───────────────────────────────────────────────────────
+
+/**
+ * Returns the average screen-space position of all building centres.
+ * Used to push hovering UFOs outward so they don't cover the buildings.
+ */
+function computeCityCenterScreen(
+  camera: IsometricCamera,
+  buildings: Building[],
+): [number, number] {
+  if (buildings.length === 0) return [0, 0];
+  let sumX = 0, sumY = 0;
+  for (const b of buildings) {
+    const pt = camera.project(b.gx + b.gw / 2, b.gy + b.gh / 2, 0);
+    sumX += pt[0];
+    sumY += pt[1];
+  }
+  return [sumX / buildings.length, sumY / buildings.length];
+}
+
 // ── Hovering agent (has targetId) ───────────────────────────────────────────
+
+/** How far (in screen pixels at scale=1) UFOs are pushed outward from the city. */
+const UFO_OUTWARD_PUSH = 80;
 
 function drawHoveringAgent(
   ctx: CanvasRenderingContext2D,
   camera: IsometricCamera,
   agent: Agent,
   buildMap: Map<string, Building>,
+  cityCenter: [number, number],
   time: number,
   animManager: AnimationManager,
 ): void {
@@ -121,10 +149,19 @@ function drawHoveringAgent(
   // Roof centre in screen space
   const roofPt = camera.project(cx, cy, target.gz);
 
-  // UFO hovers a fixed screen-space distance above the roof
-  const hoverY = roofPt[1] - 30 * Math.max(0.6, Math.min(1.5, camera.scale));
-  const sx = roofPt[0];
-  const sy = hoverY + animManager.getHoverBob(agent.id, time);
+  // UFO hovers above the roof then is pushed outward from the city centre so
+  // the buildings remain clearly visible beneath it.
+  const clampedScale = Math.max(0.6, Math.min(1.5, camera.scale));
+  const baseX = roofPt[0];
+  const baseY = roofPt[1] - 30 * clampedScale;
+
+  // Direction from city centre to building (screen space)
+  const dx = baseX - cityCenter[0];
+  const dy = baseY - cityCenter[1];
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const push = UFO_OUTWARD_PUSH * clampedScale;
+  const sx = baseX + (dx / len) * push;
+  const sy = baseY + (dy / len) * push + animManager.getHoverBob(agent.id, time);
 
   // Draw tractor beam first (underneath UFO)
   drawTractorBeam(ctx, sx, sy, roofPt, agent, time);
@@ -309,14 +346,11 @@ function drawTractorBeam(
   const perpX = -dy / len;
   const perpY =  dx / len;
 
-  const topHalf = BEAM_TOP_HALF;
-  const botHalf = BEAM_BOTTOM_HALF;
-
   // Four corners of the trapezoid
-  const tlx = ufoSx + perpX * topHalf, tly = ufoSy + perpY * topHalf;
-  const trx = ufoSx - perpX * topHalf, trY = ufoSy - perpY * topHalf;
-  const blx = bx + perpX * botHalf,   bly = by + perpY * botHalf;
-  const brx = bx - perpX * botHalf,   bry = by - perpY * botHalf;
+  const tlx = ufoSx + perpX * BEAM_TOP_HALF, tly = ufoSy + perpY * BEAM_TOP_HALF;
+  const trx = ufoSx - perpX * BEAM_TOP_HALF, trY = ufoSy - perpY * BEAM_TOP_HALF;
+  const blx = bx + perpX * BEAM_BOTTOM_HALF,   bly = by + perpY * BEAM_BOTTOM_HALF;
+  const brx = bx - perpX * BEAM_BOTTOM_HALF,   bry = by - perpY * BEAM_BOTTOM_HALF;
 
   // ── Trapezoid fill ────────────────────────────────────────────────────────
   const beamGrd = ctx.createLinearGradient(ufoSx, ufoSy, bx, by);
@@ -386,7 +420,7 @@ function drawTractorBeam(
   ctx.lineWidth = 1.2;
   ctx.setLineDash(dashPattern);
   ctx.beginPath();
-  ctx.ellipse(bx, by, botHalf * 2.5, botHalf * 1.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(bx, by, BEAM_BOTTOM_HALF * 2.5, BEAM_BOTTOM_HALF * 1.2, 0, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
