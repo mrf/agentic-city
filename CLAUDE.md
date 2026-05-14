@@ -9,6 +9,7 @@ binary. Agents monitored via the `agentwatch` library (in-process, no sidecar ne
 cmd/agentic-city/main.go        entry point, wire services, embed frontend
 internal/
   model/model.go                core data types (CityState, Building, Agent, …)
+  city/                         assemble CityState from repo scan + layout + deps
   repo/                         Git tree walk, file watcher (fsnotify, 500ms debounce)
   deps/                         regex import extractor → Road edges
   agents/                       agentwatch monitor setup, session → city-agent mapping
@@ -17,11 +18,13 @@ internal/
   hub/                          WebSocket hub, state assembly, JSON-patch broadcast
   api/                          HTTP server, REST handlers, WS upgrade
 web/src/
-  store/                        Zustand: cityStore, uiStore, wsMiddleware
+  store/                        Zustand: cityStore, uiStore, wsMiddleware, sessionPersist
   canvas/                       rAF render loop, isometric projection, all renderers
-  hud/                          React overlays (TopBar, LeftRail, RightRail, BottomStrip)
-  hooks/                        useCityKeyboard, useCameraControls, useAnimationFrame
-  orchestration/                Phase 2 dispatch UI (not yet active)
+  hud/                          React overlays (TopBar, LeftRail, RightRail, BottomStrip,
+                                  Minimap, ShortcutOverlay, ScanlineOverlay, HudOverlay)
+  hooks/                        useCityKeyboard, useAnimationFrame, useSessionPersist;
+                                  useCameraControls (planned), useWebSocket (planned)
+  orchestration/                (planned — Phase 2) dispatch & control UI
 code-sim/                       design reference sketches — read-only, do not modify
 ```
 
