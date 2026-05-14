@@ -25,18 +25,7 @@
 import type { IsometricCamera } from './IsometricCamera';
 import type { Agent, Building } from '../store/cityStore';
 import { AnimationManager } from './AnimationManager';
-
-// ── Palette ────────────────────────────────────────────────────────────────
-
-const SD = {
-  blue:   '#4a7a9c',
-  green:  '#6a8a4a',
-  orange: '#b06a3a',
-  red:    '#a14a48',
-  yellow: '#a9923a',
-  base0:  '#8a9097',
-  base01: '#3a4148',
-} as const;
+import { sol as SD } from '../theme/colors';
 
 /** Map agent.color field → hex colour. */
 function agentColor(color: string): string {

@@ -7,9 +7,8 @@
 
 import type { IsometricCamera } from './IsometricCamera';
 import type { District } from '../store/cityStore';
-
-// Solarized Dark palette values used for district rendering
-const BASE01 = '#3a4148';
+import { sol } from '../theme/colors';
+import { FONT_FAMILY, FONT_SIZE } from '../theme/typography';
 
 export function drawDistricts(
   ctx: CanvasRenderingContext2D,
@@ -34,7 +33,7 @@ function drawDistrict(
 
   // Dashed diamond outline
   ctx.setLineDash([6, 4]);
-  ctx.strokeStyle = BASE01;
+  ctx.strokeStyle = sol.base01;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(tl[0], tl[1]);
@@ -59,8 +58,8 @@ function drawDistrict(
   ctx.save();
   ctx.translate(mx + toCenter[0] * inset, my + toCenter[1] * inset);
   ctx.rotate(edgeAngle);
-  ctx.font = '10px "JetBrains Mono", monospace';
-  ctx.fillStyle = BASE01;
+  ctx.font = `${FONT_SIZE.label}px ${FONT_FAMILY}`;
+  ctx.fillStyle = sol.base01;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(d.label, 0, 0);

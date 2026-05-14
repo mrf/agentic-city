@@ -12,24 +12,7 @@ import { drawRoads } from './RoadRenderer';
 import { drawAgents } from './AgentRenderer';
 import { AnimationManager } from './AnimationManager';
 import type { CityState } from '../store/cityStore';
-
-// Solarized Dark palette (desaturated) from sd-helpers.jsx
-const SD = {
-  base03: '#0d1014',
-  base02: '#161b21',
-  base01: '#3a4148',
-  base00: '#525a62',
-  base0: '#8a9097',
-  base1: '#9ea4ab',
-  blue: '#4a7a9c',
-  cyan: '#4a8a8a',
-  green: '#6a8a4a',
-  yellow: '#a9923a',
-  orange: '#b06a3a',
-  red: '#a14a48',
-  blueDim: '#365a72',
-  cyanDim: '#345e5e',
-} as const;
+import { sol as SD } from '../theme/colors';
 
 export class CityRenderer {
   private canvas: HTMLCanvasElement;

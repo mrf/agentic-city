@@ -11,24 +11,8 @@
 
 import { IsometricCamera } from './IsometricCamera';
 import type { Building } from '../store/cityStore';
-
-const SD = {
-  base01: '#3a4148',
-  base00: '#525a62',
-  base0: '#8a9097',
-  base2: '#d8d6c8',
-  blue: '#4a7a9c',
-  cyan: '#4a8a8a',
-  green: '#6a8a4a',
-  yellow: '#a9923a',
-  orange: '#b06a3a',
-  red: '#a14a48',
-  violet: '#6a6aa0',
-  magenta: '#9c5070',
-  blueDim: '#365a72',
-  cyanDim: '#345e5e',
-  greenDim: '#4a6638',
-} as const;
+import { sol as SD } from '../theme/colors';
+import { FONT_FAMILY, FONT_SIZE } from '../theme/typography';
 
 const LANG_COLORS: Record<string, string> = {
   ts: SD.blue,
@@ -440,7 +424,7 @@ function drawLabel(
   b: Building,
   bottomLeft: [number, number],
 ): void {
-  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.font = `${FONT_SIZE.label}px ${FONT_FAMILY}`;
   const textWidth = ctx.measureText(b.label).width;
   const padX = 4;
   const padY = 3;

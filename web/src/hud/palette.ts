@@ -1,23 +1,9 @@
-/** Solarized dark palette used across canvas and HUD. */
-export const sol = {
-  base03: '#0d1014',
-  base02: '#161b21',
-  base01: '#3a4148',
-  base00: '#525a62',
-  base0: '#8a9097',
-  base1: '#9ea4ab',
-  base2: '#d8d6c8',
-  blue: '#4a7a9c',
-  cyan: '#4a8a8a',
-  green: '#6a8a4a',
-  yellow: '#a9923a',
-  orange: '#b06a3a',
-  red: '#a14a48',
-  violet: '#6a6aa0',
-  magenta: '#9c5070',
-} as const;
+import { sol } from '../theme/colors';
+import { FONT_FAMILY, FONT_SIZE } from '../theme/typography';
 
-export const FONT = '"JetBrains Mono", monospace';
+/** Solarized dark palette used across canvas and HUD. */
+export { sol } from '../theme/colors';
+export { FONT_FAMILY as FONT, FONT_SIZE } from '../theme/typography';
 
 /** Height of the top bar in pixels. */
 export const TOP_BAR_H = 32;
@@ -27,8 +13,8 @@ export const BOTTOM_STRIP_H = 28;
 
 /** Common base styles shared across all HUD panels. */
 export const hudBase = {
-  fontFamily: FONT,
-  fontSize: 11,
+  fontFamily: FONT_FAMILY,
+  fontSize: FONT_SIZE.hud,
   color: sol.base1,
   userSelect: 'none' as const,
   pointerEvents: 'none' as const,

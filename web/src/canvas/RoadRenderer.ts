@@ -9,6 +9,7 @@
 
 import type { IsometricCamera } from './IsometricCamera';
 import type { Building, Confidence, Road } from '../store/cityStore';
+import { sol } from '../theme/colors';
 
 // Per-confidence visual style. Dash arrays are pre-allocated to avoid
 // per-road allocations in the rAF hot path.
@@ -20,10 +21,10 @@ const CONFIDENCE_STYLES: Record<Confidence, { dash: number[]; alpha: number; wid
 const FALLBACK_STYLE = CONFIDENCE_STYLES.weak;
 
 // Solarized Dark colours
-const COLOR_DEFAULT  = '#525a62'; // base00  — faint, no selection
-const COLOR_OUTGOING = '#4a8a8a'; // cyan    — selected building → other
-const COLOR_INCOMING = '#4a7a9c'; // blue    — other → selected building
-const COLOR_DIM      = '#3a4148'; // base01  — unrelated edge while selection active
+const COLOR_DEFAULT  = sol.base00; // faint, no selection
+const COLOR_OUTGOING = sol.cyan;   // selected building → other
+const COLOR_INCOMING = sol.blue;   // other → selected building
+const COLOR_DIM      = sol.base01; // unrelated edge while selection active
 
 export function drawRoads(
   ctx: CanvasRenderingContext2D,
