@@ -217,7 +217,7 @@ function drawBuilding(
 
   // --- 9. Floating label with backing plate ---
   if (showLabels) {
-    drawLabel(ctx, camera, b);
+    drawLabel(ctx, b, D2);
   }
 }
 
@@ -509,23 +509,18 @@ export function drawCursorHighlight(
 
 function drawLabel(
   ctx: CanvasRenderingContext2D,
-  camera: IsometricCamera,
   b: Building,
+  bottomLeft: [number, number],
 ): void {
-  const roofCenter = camera.project(
-    b.gx + b.gw / 2,
-    b.gy + b.gh / 2,
-    b.gz,
-  );
-
   ctx.font = '10px "JetBrains Mono", monospace';
   const textWidth = ctx.measureText(b.label).width;
   const padX = 4;
   const padY = 3;
   const plateW = textWidth + padX * 2;
   const plateH = 12 + padY;
-  const plateX = roofCenter[0] - plateW / 2;
-  const plateY = roofCenter[1] - 20 - plateH / 2;
+  // Anchor right edge of plate to the bottom-left roof vertex (D2)
+  const plateX = bottomLeft[0] - plateW;
+  const plateY = bottomLeft[1] - plateH / 2;
 
   const statusColor = statusToColor(b.status);
 
@@ -540,5 +535,5 @@ function drawLabel(
   ctx.fillStyle = statusColor ?? SD.base2;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(b.label, roofCenter[0], plateY + plateH / 2);
+  ctx.fillText(b.label, plateX + plateW / 2, plateY + plateH / 2);
 }
