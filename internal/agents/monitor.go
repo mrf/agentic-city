@@ -33,7 +33,13 @@ import (
 // without agents until sessions are discovered on a subsequent restart.
 //
 // The goroutine runs until ctx is canceled.
-func StartMonitor(ctx context.Context, cityState *hub.State, h *hub.Hub) {
+func StartMonitor(ctx context.Context, repoPath string, cityState *hub.State, h *hub.Hub) {
+	absRepo, absErr := filepath.Abs(repoPath)
+	if absErr != nil {
+		slog.Error("agents: cannot resolve repo path", "path", repoPath, "err", absErr)
+		return
+	}
+
 	sources := buildSources()
 	if len(sources) == 0 {
 		slog.Info("agents: no agentwatch sources found — city will render without agents")
@@ -50,7 +56,7 @@ func StartMonitor(ctx context.Context, cityState *hub.State, h *hub.Hub) {
 			return nil
 		}
 		sessions := mon.Snapshot()
-		agents := sessionsToAgents(sessions)
+		agents := sessionsToAgents(sessions, absRepo)
 		curr := cityState.GetState()
 		curr.Agents = agents
 		cityState.SetState(curr)
@@ -131,13 +137,17 @@ func buildSources() []source.Source {
 }
 
 // sessionsToAgents converts a slice of agentwatch SessionState values to
-// city model.Agent values. Terminal sessions are excluded; the city roster
-// reflects only active sessions. An empty slice is returned (not nil) when
-// no active sessions exist, so that the city renders without agents.
-func sessionsToAgents(sessions []session.SessionState) []model.Agent {
+// city model.Agent values. Terminal sessions and sessions whose WorkingDir
+// is not under repoPath are excluded; the city roster reflects only active
+// sessions for the target repository. An empty slice is returned (not nil)
+// when no matching sessions exist.
+func sessionsToAgents(sessions []session.SessionState, repoPath string) []model.Agent {
 	agents := make([]model.Agent, 0, len(sessions))
 	for i := range sessions {
 		if sessions[i].Lifecycle == session.LifecycleTerminal {
+			continue
+		}
+		if !strings.HasPrefix(sessions[i].WorkingDir, repoPath) {
 			continue
 		}
 		agents = append(agents, sessionToAgent(sessions[i]))

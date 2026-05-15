@@ -36,8 +36,6 @@ func main() {
 	defer stop()
 
 	mux := http.NewServeMux()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	var cityState *hub.State
 	var buildCfg city.BuildConfig
@@ -69,7 +67,7 @@ func main() {
 
 	if !*demo {
 		go runWatcher(ctx, *repoPath, buildCfg, cityState, h)
-		agents.StartMonitor(ctx, cityState, h)
+		agents.StartMonitor(ctx, *repoPath, cityState, h)
 	}
 
 	api.New(cityState).WithWSHandler(h.ServeWS).Register(mux)

@@ -14,7 +14,7 @@ func TestSessionsToAgents_filtersTerminal(t *testing.T) {
 		{ID: "a3", Source: "gemini", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking},
 	}
 
-	got := sessionsToAgents(sessions)
+	got := sessionsToAgents(sessions, "")
 
 	if len(got) != 2 {
 		t.Fatalf("got %d agents, want 2", len(got))
@@ -27,7 +27,7 @@ func TestSessionsToAgents_filtersTerminal(t *testing.T) {
 }
 
 func TestSessionsToAgents_emptyReturnsEmpty(t *testing.T) {
-	got := sessionsToAgents(nil)
+	got := sessionsToAgents(nil, "")
 	if got == nil {
 		t.Error("sessionsToAgents(nil) returned nil, want empty slice")
 	}
@@ -170,7 +170,7 @@ func TestSessionsToAgents_colorAndMode(t *testing.T) {
 		{ID: "g1", Source: "gemini", Lifecycle: session.LifecycleActive, Activity: session.ActivityWaiting},
 	}
 
-	agents := sessionsToAgents(sessions)
+	agents := sessionsToAgents(sessions, "")
 
 	wantByID := map[string]model.Agent{
 		"claude:c1": {Color: "#4a7a9c", Mode: "work"},
@@ -194,5 +194,26 @@ func TestSessionsToAgents_colorAndMode(t *testing.T) {
 		if a.Mode != want.Mode {
 			t.Errorf("%s: Mode=%q, want %q", a.ID, a.Mode, want.Mode)
 		}
+	}
+}
+
+func TestSessionsToAgents_filtersWorkingDir(t *testing.T) {
+	sessions := []session.SessionState{
+		{ID: "a1", Source: "claude", Lifecycle: session.LifecycleActive, WorkingDir: "/home/user/myrepo"},
+		{ID: "a2", Source: "claude", Lifecycle: session.LifecycleActive, WorkingDir: "/home/user/myrepo/.claude/worktrees/fix-bug"},
+		{ID: "a3", Source: "claude", Lifecycle: session.LifecycleActive, WorkingDir: "/home/user/other-project"},
+		{ID: "a4", Source: "codex", Lifecycle: session.LifecycleActive, WorkingDir: "/tmp/scratch"},
+	}
+
+	got := sessionsToAgents(sessions, "/home/user/myrepo")
+	if len(got) != 2 {
+		t.Fatalf("got %d agents, want 2 (only sessions under /home/user/myrepo)", len(got))
+	}
+	ids := map[string]bool{}
+	for _, a := range got {
+		ids[a.ID] = true
+	}
+	if !ids["claude:a1"] || !ids["claude:a2"] {
+		t.Errorf("expected claude:a1 and claude:a2, got %v", ids)
 	}
 }
