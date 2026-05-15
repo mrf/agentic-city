@@ -16,6 +16,26 @@ import (
 	"github.com/mferree/agent-city/internal/repo"
 )
 
+// ApplyMetrics overlays coverage ratios and test status from src onto the buildings
+// in state. Only buildings with entries in src are updated; all others retain their
+// existing Coverage and Status values. Stats and Timestamp are recomputed.
+func ApplyMetrics(state model.CityState, src repo.MetricsSource) model.CityState {
+	updated := make([]model.Building, len(state.Buildings))
+	for i, b := range state.Buildings {
+		if cov, ok := src.Coverage[b.ID]; ok {
+			b.Coverage = cov
+		}
+		if st := src.StatusFor(b.ID); st != "unknown" {
+			b.Status = st
+		}
+		updated[i] = b
+	}
+	state.Buildings = updated
+	state.Stats = computeStats(updated)
+	state.Timestamp = time.Now().UnixMilli()
+	return state
+}
+
 // BuildConfig holds the parameters for a full city state build.
 type BuildConfig struct {
 	ScanCfg   repo.ScanConfig

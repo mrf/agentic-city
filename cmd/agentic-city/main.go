@@ -30,6 +30,8 @@ func main() {
 	demo := flag.Bool("demo", false, "Run in demo mode with synthetic city data")
 	addr := flag.String("addr", ":8080", "HTTP listen address")
 	repoPath := flag.String("repo", ".", "Path to the git repository to visualise")
+	coveragePath := flag.String("coverage", "", "Path to coverage file (coverage.out, lcov.info, coverage.json); auto-detected if empty")
+	testResultsPath := flag.String("test-results", "", "Path to test result file (JUnit XML or Go test JSON); auto-detected if empty")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -68,6 +70,15 @@ func main() {
 	if !*demo {
 		go runWatcher(ctx, *repoPath, buildCfg, cityState, h)
 		agents.StartMonitor(ctx, *repoPath, cityState, h)
+
+		if mw := buildMetricsWatcher(*repoPath, *coveragePath, *testResultsPath, readModuleName(*repoPath)); mw != nil {
+			if err := mw.Start(); err != nil {
+				log.Printf("metrics watcher: start failed: %v", err)
+				mw.Stop()
+			} else {
+				go runMetricsWatcher(ctx, mw, cityState, h)
+			}
+		}
 	}
 
 	api.New(cityState).WithWSHandler(h.ServeWS).Register(mux)
@@ -424,6 +435,78 @@ func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, stat
 				state.SetState(next)
 			}
 
+			if h != nil {
+				h.Notify()
+			}
+		}
+	}
+}
+
+// buildMetricsWatcher constructs a MetricsWatcher using explicit paths when
+// provided, falling back to auto-detection of well-known filenames at repoPath.
+// Returns nil when no coverage or test-result files are found.
+func buildMetricsWatcher(repoPath, coveragePath, testResultsPath, modulePath string) *repo.MetricsWatcher {
+	coverageFiles, testResultFiles := autoDetectMetricsFiles(repoPath)
+
+	if coveragePath != "" {
+		coverageFiles = []string{coveragePath}
+	}
+	if testResultsPath != "" {
+		testResultFiles = []string{testResultsPath}
+	}
+
+	if len(coverageFiles) == 0 && len(testResultFiles) == 0 {
+		return nil
+	}
+
+	log.Printf("metrics watcher: coverage=%v test-results=%v", coverageFiles, testResultFiles)
+
+	mw, err := repo.NewMetricsWatcher(repo.MetricsConfig{
+		CoverageFiles:   coverageFiles,
+		TestResultFiles: testResultFiles,
+		RepoRoot:        repoPath,
+		ModulePath:      modulePath,
+	})
+	if err != nil {
+		log.Printf("metrics watcher: init failed: %v", err)
+		return nil
+	}
+	return mw
+}
+
+// autoDetectMetricsFiles scans repoPath for well-known coverage and test-result
+// filenames and returns their absolute paths grouped by type.
+func autoDetectMetricsFiles(repoPath string) (coverageFiles, testResultFiles []string) {
+	for _, name := range []string{"coverage.out", "lcov.info", "coverage.json"} {
+		p := filepath.Join(repoPath, name)
+		if _, err := os.Stat(p); err == nil {
+			coverageFiles = append(coverageFiles, p)
+		}
+	}
+	for _, name := range []string{"test-results.xml", "test-results.json"} {
+		p := filepath.Join(repoPath, name)
+		if _, err := os.Stat(p); err == nil {
+			testResultFiles = append(testResultFiles, p)
+		}
+	}
+	return coverageFiles, testResultFiles
+}
+
+// runMetricsWatcher consumes MetricsWatcher updates and applies coverage and
+// test status to all buildings in state, notifying connected clients via h.
+func runMetricsWatcher(ctx context.Context, mw *repo.MetricsWatcher, state *hub.State, h *hub.Hub) {
+	defer mw.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case src, ok := <-mw.Updates:
+			if !ok {
+				return
+			}
+			curr := state.GetState()
+			next := city.ApplyMetrics(curr, src)
+			state.SetState(next)
 			if h != nil {
 				h.Notify()
 			}

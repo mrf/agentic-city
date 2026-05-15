@@ -10,6 +10,7 @@ import (
 	"github.com/mferree/agent-city/internal/deps"
 	"github.com/mferree/agent-city/internal/layout"
 	"github.com/mferree/agent-city/internal/model"
+	"github.com/mferree/agent-city/internal/repo"
 )
 
 // noopReader returns nil content for any file.
@@ -65,8 +66,8 @@ func TestAssembleState_BuildingsAndDistricts(t *testing.T) {
 		{ID: "lib/helper.go", Language: "go", LOC: 75},
 	}
 	files := map[string]string{
-		"src/main.ts":  `import { helper } from './utils';`,
-		"src/utils.ts": `export const helper = () => {};`,
+		"src/main.ts":   `import { helper } from './utils';`,
+		"src/utils.ts":  `export const helper = () => {};`,
 		"lib/helper.go": `package lib`,
 	}
 
@@ -294,5 +295,123 @@ func TestGatherRepoInfo_SelfRepo(t *testing.T) {
 	}
 	if info.CIStatus == "" {
 		t.Error("CIStatus: want non-empty (at least 'unknown')")
+	}
+}
+
+// ─── ApplyMetrics ─────────────────────────────────────────────────────────────
+
+func TestApplyMetrics(t *testing.T) {
+	cases := []struct {
+		name         string
+		buildings    []model.Building
+		src          repo.MetricsSource
+		wantCoverage map[string]float64
+		wantStatus   map[string]string
+	}{
+		{
+			name: "sets coverage and status from metrics",
+			buildings: []model.Building{
+				{ID: "internal/repo/file.go", LOC: 100, Coverage: -1, Status: "unknown"},
+				{ID: "internal/city/builder.go", LOC: 150, Coverage: -1, Status: "unknown"},
+			},
+			src: repo.MetricsSource{
+				Coverage: repo.CoverageMap{
+					"internal/repo/file.go":    0.75,
+					"internal/city/builder.go": 0.90,
+				},
+				FileStatus: map[string]string{
+					"internal/repo/file.go": "ok",
+				},
+				DirStatus: map[string]string{
+					"internal/city": "err",
+				},
+			},
+			wantCoverage: map[string]float64{
+				"internal/repo/file.go":    0.75,
+				"internal/city/builder.go": 0.90,
+			},
+			wantStatus: map[string]string{
+				"internal/repo/file.go":    "ok",
+				"internal/city/builder.go": "err",
+			},
+		},
+		{
+			name: "missing entry keeps existing coverage and unknown status",
+			buildings: []model.Building{
+				{ID: "cmd/main.go", LOC: 50, Coverage: -1, Status: "unknown"},
+			},
+			src: repo.MetricsSource{
+				Coverage:   repo.CoverageMap{},
+				FileStatus: map[string]string{},
+				DirStatus:  map[string]string{},
+			},
+			wantCoverage: map[string]float64{
+				"cmd/main.go": -1,
+			},
+			wantStatus: map[string]string{
+				"cmd/main.go": "unknown",
+			},
+		},
+		{
+			name: "recomputes stats after applying coverage",
+			buildings: []model.Building{
+				{ID: "a.go", LOC: 100, Coverage: -1, Status: "unknown"},
+				{ID: "b.go", LOC: 100, Coverage: -1, Status: "unknown"},
+			},
+			src: repo.MetricsSource{
+				Coverage: repo.CoverageMap{
+					"a.go": 0.80,
+					"b.go": 0.60,
+				},
+				FileStatus: map[string]string{},
+				DirStatus:  map[string]string{},
+			},
+			wantCoverage: map[string]float64{
+				"a.go": 0.80,
+				"b.go": 0.60,
+			},
+			wantStatus: map[string]string{
+				"a.go": "unknown",
+				"b.go": "unknown",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			state := model.CityState{Buildings: tc.buildings}
+			next := ApplyMetrics(state, tc.src)
+
+			byID := make(map[string]model.Building, len(next.Buildings))
+			for _, b := range next.Buildings {
+				byID[b.ID] = b
+			}
+
+			for id, wantCov := range tc.wantCoverage {
+				b, ok := byID[id]
+				if !ok {
+					t.Errorf("building %q missing from result", id)
+					continue
+				}
+				if b.Coverage != wantCov {
+					t.Errorf("building %q: Coverage = %v, want %v", id, b.Coverage, wantCov)
+				}
+			}
+			for id, wantSt := range tc.wantStatus {
+				b, ok := byID[id]
+				if !ok {
+					t.Errorf("building %q missing from result", id)
+					continue
+				}
+				if b.Status != wantSt {
+					t.Errorf("building %q: Status = %q, want %q", id, b.Status, wantSt)
+				}
+			}
+
+			// Stats should reflect updated coverage.
+			if next.Stats.FileCount != len(tc.buildings) {
+				t.Errorf("Stats.FileCount = %d, want %d", next.Stats.FileCount, len(tc.buildings))
+			}
+		})
 	}
 }
