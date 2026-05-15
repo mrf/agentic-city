@@ -9,6 +9,7 @@
 import { useEffect, useRef } from 'react';
 import { useCityStore } from '../store/cityStore';
 import { useUiStore } from '../store/uiStore';
+import { useCameraControls } from './useCameraControls';
 import type { Building } from '../store/cityStore';
 import type { CityRenderer } from '../canvas/CityRenderer';
 import type { IsometricCamera } from '../canvas/IsometricCamera';
@@ -89,11 +90,11 @@ function moveCursor(
   camera: IsometricCamera,
   building: Building,
   setCursor: (id: string | null) => void,
-  syncCamera: () => void,
+  syncCamera: (cam: IsometricCamera) => void,
 ): void {
   setCursor(building.id);
   autoFollow(camera, building);
-  syncCamera();
+  syncCamera(camera);
 }
 
 export function useCityKeyboard(
@@ -107,8 +108,6 @@ export function useCityKeyboard(
   const selectBuilding = useUiStore((s) => s.selectBuilding);
   const focusZone = useUiStore((s) => s.focusZone);
   const setFocusZone = useUiStore((s) => s.setFocusZone);
-  const setZoom = useUiStore((s) => s.setZoom);
-  const setCamera = useUiStore((s) => s.setCamera);
   const toggleRoads = useUiStore((s) => s.toggleRoads);
   const toggleLabels = useUiStore((s) => s.toggleLabels);
   const toggleMinimap = useUiStore((s) => s.toggleMinimap);
@@ -119,6 +118,7 @@ export function useCityKeyboard(
   const setFocusedAgentIndex = useUiStore((s) => s.setFocusedAgentIndex);
   const inspectedAgentId = useUiStore((s) => s.inspectedAgentId);
   const setInspectedAgentId = useUiStore((s) => s.setInspectedAgentId);
+  const { syncCamera, panByKey, zoomIn, zoomOut, resetZoom } = useCameraControls();
 
   // Phase 2 state
   const phase2 = useUiStore((s) => s.phase2);
@@ -181,10 +181,9 @@ export function useCityKeyboard(
       // Phase 2 modals own their keyboard — yield all events
       if (dispatchMode || commandPaletteOpen) return;
 
-      const syncCamera = () => {
-        setZoom(cam.scale);
-        setCamera(cam.ox, cam.oy);
-      };
+      // --- Focus-zone switching ---
+      if (e.key === '[') { setFocusZone('left'); e.preventDefault(); return; }
+      if (e.key === ']') { setFocusZone('right'); e.preventDefault(); return; }
 
       if (e.key === 'Escape') {
         if (inspectedAgentId) {
@@ -282,19 +281,19 @@ export function useCityKeyboard(
       // --- Camera pan (WASD / arrows) ---
       switch (e.key) {
         case 'w': case 'W': case 'ArrowUp':
-          cam.panByKey('up'); syncCamera(); e.preventDefault(); return;
+          panByKey(cam, 'up'); e.preventDefault(); return;
         case 's': case 'S': case 'ArrowDown':
-          cam.panByKey('down'); syncCamera(); e.preventDefault(); return;
+          panByKey(cam, 'down'); e.preventDefault(); return;
         case 'a': case 'A': case 'ArrowLeft':
-          cam.panByKey('left'); syncCamera(); e.preventDefault(); return;
+          panByKey(cam, 'left'); e.preventDefault(); return;
         case 'd': case 'D': case 'ArrowRight':
-          cam.panByKey('right'); syncCamera(); e.preventDefault(); return;
+          panByKey(cam, 'right'); e.preventDefault(); return;
         case '+': case '=':
-          cam.zoomIn(); syncCamera(); e.preventDefault(); return;
+          zoomIn(cam); e.preventDefault(); return;
         case '-':
-          cam.zoomOut(); syncCamera(); e.preventDefault(); return;
+          zoomOut(cam); e.preventDefault(); return;
         case '0':
-          cam.resetZoom(); syncCamera(); e.preventDefault(); return;
+          resetZoom(cam); e.preventDefault(); return;
       }
 
       // --- Cursor navigation ---
@@ -364,7 +363,7 @@ export function useCityKeyboard(
       // F — focus/center camera on cursor
       if (e.key === 'f' || e.key === 'F') {
         autoFollow(cam, cursor, true);
-        syncCamera();
+        syncCamera(cam);
         e.preventDefault();
         return;
       }
@@ -374,7 +373,7 @@ export function useCityKeyboard(
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
     setCursor, selectBuilding, setFocusZone,
-    setZoom, setCamera,
+    syncCamera, panByKey, zoomIn, zoomOut, resetZoom,
     toggleRoads, toggleLabels, toggleMinimap,
     toggleShortcutOverlay, toggleHighContrast,
     setFocusedAgentIndex, setInspectedAgentId,
