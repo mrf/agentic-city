@@ -418,6 +418,56 @@ func TestLayout_DefaultDepthIsTwo(t *testing.T) {
 	}
 }
 
+// TestLayout_BuildingsWithinDistrictBounds verifies that the district GH expands
+// to cover buildings that would otherwise overflow a 4th+ row. This is the
+// regression test for agentic-city-5nt.
+//
+// The treemap sizes districts by total LOC weight. District B has 12 buildings
+// with LOC=10 each (total 120), while district A has LOC=10000 — so B gets a
+// tiny treemap rect (~30 units²) that is far too small to hold 12 minimum-size
+// buildings (each 4×3.2 + gutters). The district GH must grow to fit them.
+func TestLayout_BuildingsWithinDistrictBounds(t *testing.T) {
+	buildings := []model.Building{
+		// District A: single huge file — takes most of the treemap canvas.
+		{ID: "bigpkg/huge.go", LOC: 10000},
+	}
+	// District B: 12 tiny files — gets a small treemap slice but buildings
+	// all have minimum footprint 4×3.2, so they easily overflow vertically.
+	for i := 0; i < 12; i++ {
+		buildings = append(buildings, model.Building{
+			ID:  fmt.Sprintf("smallpkg/f%02d.go", i),
+			LOC: 10,
+		})
+	}
+	result := Layout(buildings, Config{DistrictDepth: 1})
+
+	distByID := make(map[string]model.District)
+	for _, d := range result.Districts {
+		distByID[d.ID] = d
+	}
+
+	for _, b := range result.Buildings {
+		d, ok := distByID[b.DistrictID]
+		if !ok {
+			t.Fatalf("building %q has unknown districtID %q", b.ID, b.DistrictID)
+		}
+		if b.GX < d.GX-eps {
+			t.Errorf("building %q GX=%.3f < district GX=%.3f", b.ID, b.GX, d.GX)
+		}
+		if b.GY < d.GY-eps {
+			t.Errorf("building %q GY=%.3f < district GY=%.3f", b.ID, b.GY, d.GY)
+		}
+		if b.GX+b.GW > d.GX+d.GW+eps {
+			t.Errorf("building %q right=%.3f > district right=%.3f",
+				b.ID, b.GX+b.GW, d.GX+d.GW)
+		}
+		if b.GY+b.GH > d.GY+d.GH+eps {
+			t.Errorf("building %q bottom=%.3f > district bottom=%.3f",
+				b.ID, b.GY+b.GH, d.GY+d.GH)
+		}
+	}
+}
+
 func TestLayout_OutputSortedByID(t *testing.T) {
 	buildings := []model.Building{
 		{ID: "z/last.go", LOC: 100},

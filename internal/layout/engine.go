@@ -45,9 +45,9 @@ func Layout(buildings []model.Building, cfg Config) Result {
 	// --- Group buildings into districts ----------------------------------------
 
 	type districtEntry struct {
-		id       string
+		id        string
 		buildings []model.Building
-		totalLOC int
+		totalLOC  int
 	}
 
 	districtMap := make(map[string]*districtEntry)
@@ -125,6 +125,18 @@ func Layout(buildings []model.Building, cfg Config) Result {
 			parentID = ""
 		}
 
+		packed := packDistrict(de.buildings, r.x, r.y, r.w, r.h)
+
+		// Expand district height to cover any buildings that overflow the
+		// treemap-allocated bounds (happens when many low-LOC files produce
+		// more rows than the slot's height accommodates).
+		actualH := r.h
+		for _, b := range packed {
+			if bottom := b.GY + b.GH + gutterSize; bottom > r.y+actualH {
+				actualH = bottom - r.y
+			}
+		}
+
 		outDistricts = append(outDistricts, model.District{
 			ID:       de.id,
 			Label:    label,
@@ -132,10 +144,9 @@ func Layout(buildings []model.Building, cfg Config) Result {
 			GX:       r.x,
 			GY:       r.y,
 			GW:       r.w,
-			GH:       r.h,
+			GH:       actualH,
 		})
 
-		packed := packDistrict(de.buildings, r.x, r.y, r.w, r.h)
 		outBuildings = append(outBuildings, packed...)
 	}
 
