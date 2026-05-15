@@ -2,6 +2,43 @@ import { create } from 'zustand';
 
 export type FocusZone = 'city' | 'left' | 'right' | 'modal';
 
+/** Level-of-detail level: L1 = most zoomed in (function), L4 = most zoomed out (codebase). */
+export type LodLevel = 'L1' | 'L2' | 'L3' | 'L4';
+
+/**
+ * Hysteresis bands for LOD transitions.
+ * `leave` = zoom out past this to exit the level;
+ * `enter` = zoom in past this to enter the level.
+ * The dead band between leave and enter prevents flickering at boundaries.
+ */
+export const LOD_THRESHOLDS = {
+  L1: { leave: 3.5, enter: 4.5 },  // function-level: highest zoom
+  L2: { leave: 0.9, enter: 1.2 },  // file-level
+  L3: { leave: 0.3, enter: 0.4 },  // module-level
+  // L4 (codebase/orbit) is below all L3 thresholds
+} as const;
+
+/**
+ * Compute the new LOD level from a zoom value and the current level.
+ * Pure function — exported for testing.
+ */
+export function computeLodLevel(zoom: number, current: LodLevel): LodLevel {
+  switch (current) {
+    case 'L1':
+      return zoom < LOD_THRESHOLDS.L1.leave ? 'L2' : 'L1';
+    case 'L2':
+      if (zoom >= LOD_THRESHOLDS.L1.enter) return 'L1';
+      if (zoom < LOD_THRESHOLDS.L2.leave) return 'L3';
+      return 'L2';
+    case 'L3':
+      if (zoom >= LOD_THRESHOLDS.L2.enter) return 'L2';
+      if (zoom < LOD_THRESHOLDS.L3.leave) return 'L4';
+      return 'L3';
+    case 'L4':
+      return zoom >= LOD_THRESHOLDS.L3.enter ? 'L3' : 'L4';
+  }
+}
+
 export type DispatchStep = 1 | 2 | 3;
 
 export type DispatchRole =
@@ -42,6 +79,7 @@ interface UiStore {
 
   // Zoom and camera (mirrors IsometricCamera state for React consumers)
   zoom: number;
+  lodLevel: LodLevel;
   cameraX: number;
   cameraY: number;
 
@@ -101,6 +139,7 @@ export const useUiStore = create<UiStore>((set) => ({
   focusZone: 'city',
 
   zoom: 1.0,
+  lodLevel: 'L2',
   cameraX: 0,
   cameraY: 0,
 
@@ -126,7 +165,7 @@ export const useUiStore = create<UiStore>((set) => ({
   selectBuilding: (id) => set({ selectedBuildingId: id }),
   setCursor: (id) => set({ cursorBuildingId: id }),
   setFocusZone: (zone) => set({ focusZone: zone }),
-  setZoom: (zoom) => set({ zoom }),
+  setZoom: (zoom) => set((s) => ({ zoom, lodLevel: computeLodLevel(zoom, s.lodLevel) })),
   setCamera: (x, y) => set({ cameraX: x, cameraY: y }),
   toggleRoads: () => set((s) => ({ showRoads: !s.showRoads })),
   toggleLabels: () => set((s) => ({ showLabels: !s.showLabels })),
@@ -179,3 +218,8 @@ export const useUiStore = create<UiStore>((set) => ({
     focusZone: 'city',
   }),
 }));
+
+/** Derived selector: current LOD level, re-renders only when the level changes. */
+export function useLodLevel(): LodLevel {
+  return useUiStore((s) => s.lodLevel);
+}
