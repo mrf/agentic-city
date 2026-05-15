@@ -126,17 +126,19 @@ export function useCityKeyboard(
   const commandPaletteOpen = useUiStore((s) => s.commandPaletteOpen);
   const openDispatch = useUiStore((s) => s.openDispatch);
   const openCommandPalette = useUiStore((s) => s.openCommandPalette);
+  const alarmActive = useUiStore((s) => s.alarmActive);
+  const toggleAlarm = useUiStore((s) => s.toggleAlarm);
 
   // Ref holds latest reactive state so the keydown handler stays stable
   const stateRef = useRef({
     buildings, districts, agents, cursorBuildingId, focusZone,
     showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
-    phase2, dispatchMode, commandPaletteOpen,
+    phase2, dispatchMode, commandPaletteOpen, alarmActive,
   });
   stateRef.current = {
     buildings, districts, agents, cursorBuildingId, focusZone,
     showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
-    phase2, dispatchMode, commandPaletteOpen,
+    phase2, dispatchMode, commandPaletteOpen, alarmActive,
   };
 
   useEffect(() => {
@@ -152,7 +154,7 @@ export function useCityKeyboard(
       const {
         buildings, districts, agents, cursorBuildingId, focusZone,
         showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
-        phase2, dispatchMode, commandPaletteOpen,
+        phase2, dispatchMode, commandPaletteOpen, alarmActive,
       } = stateRef.current;
 
       if (e.key === '?') {
@@ -178,8 +180,15 @@ export function useCityKeyboard(
         return;
       }
 
+      // Phase 2: X toggles alarm overlay
+      if (phase2 && (e.key === 'x' || e.key === 'X') && !dispatchMode && !commandPaletteOpen) {
+        toggleAlarm();
+        e.preventDefault();
+        return;
+      }
+
       // Phase 2 modals own their keyboard — yield all events
-      if (dispatchMode || commandPaletteOpen) return;
+      if (dispatchMode || commandPaletteOpen || alarmActive) return;
 
       // --- Focus-zone switching ---
       if (e.key === '[') { setFocusZone('left'); e.preventDefault(); return; }
@@ -377,7 +386,7 @@ export function useCityKeyboard(
     toggleRoads, toggleLabels, toggleMinimap,
     toggleShortcutOverlay, toggleHighContrast,
     setFocusedAgentIndex, setInspectedAgentId,
-    openDispatch, openCommandPalette,
+    openDispatch, openCommandPalette, toggleAlarm,
     rendererRef,
   ]);
 }

@@ -7,9 +7,11 @@ import { ShortcutOverlay } from './ShortcutOverlay';
 import { Minimap } from './Minimap';
 import { DispatchWizard } from '../orchestration/DispatchWizard';
 import { CommandPalette } from '../orchestration/CommandPalette';
+import { AlarmOverlay } from '../orchestration/AlarmOverlay';
 
 export function HudOverlay(): JSX.Element {
   const highContrast = useUiStore((s) => s.highContrast);
+  const alarmActive = useUiStore((s) => s.alarmActive);
 
   return (
     <>
@@ -20,13 +22,15 @@ export function HudOverlay(): JSX.Element {
             : undefined
         }
       >
-        <TopBar />
-        <LeftRail />
-        <RightRail />
+        {/* Alarm overlay replaces normal top bar / rails when active */}
+        {!alarmActive && <TopBar />}
+        {!alarmActive && <LeftRail />}
+        {!alarmActive && <RightRail />}
         <BottomStrip />
       </div>
       <ShortcutOverlay />
       <Minimap />
+      <AlarmOverlay />
       <DispatchWizard />
       <CommandPalette />
     </>

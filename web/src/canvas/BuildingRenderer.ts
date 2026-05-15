@@ -47,9 +47,17 @@ function hexToRgb(hex: string): [number, number, number] {
 
 /** Map building status to an accent color, or null for default/unknown. */
 function statusToColor(status: string): string | null {
-  if (status === 'err') return SD.red;
-  if (status === 'warn') return SD.yellow;
-  return null;
+  switch (status) {
+    case 'err':
+    case 'CRIT': return SD.red;
+    case 'warn': return SD.yellow;
+    default:     return null;
+  }
+}
+
+/** True when a building is in an error/critical state that warrants alarm visuals. */
+function isAlarmStatus(status: string): boolean {
+  return status === 'err' || status === 'CRIT';
 }
 
 /** Draw all buildings sorted back-to-front for correct occlusion. */
@@ -182,17 +190,28 @@ function drawBuilding(
   ctx.lineWidth = 0.95;
   ctx.stroke();
 
-  // --- 6. Window dots (coverage pattern on roof) ---
+  // --- 6. Red flash fill for err/CRIT buildings ---
+  if (isAlarmStatus(b.status)) {
+    drawAlarmFlash(ctx, A, B, D, A2, B2, C2, D2, time);
+  }
+
+  // --- 7. Window dots (coverage pattern on roof) ---
   drawWindowDots(ctx, camera, b);
 
-  // --- 7. Edit pulse rings (animated, when editing=true) ---
+  // --- 8. Smoke/glitch lines on CRIT buildings ---
+  if (b.status === 'CRIT') {
+    const roofCenter = camera.project(b.gx + b.gw / 2, b.gy + b.gh / 2, b.gz);
+    drawSmokeLines(ctx, roofCenter, time);
+  }
+
+  // --- 9. Edit pulse rings (animated, when editing=true) ---
   if (b.editing) {
     drawEditRings(ctx, camera, b, time);
   }
 
-  // --- 8. Floating label with backing plate ---
+  // --- 10. Floating label with backing plate ---
   if (showLabels) {
-    drawLabel(ctx, b, D2);
+    drawLabel(ctx, b, D2, b.status === 'CRIT');
   }
 }
 
@@ -419,13 +438,102 @@ export function drawCursorHighlight(
   ctx.restore();
 }
 
+/**
+ * Draw a pulsing red flash fill over the two visible side faces and roof,
+ * matching sketch-D's full-body red glow on err/CRIT buildings.
+ */
+function drawAlarmFlash(
+  ctx: CanvasRenderingContext2D,
+  A: [number, number], B: [number, number],
+  D: [number, number],
+  A2: [number, number], B2: [number, number],
+  C2: [number, number], D2: [number, number],
+  time: number,
+): void {
+  // Blink at ~1.1s: half the cycle at full alpha, half at low alpha
+  const phase = (time % 1100) / 1100;
+  const alpha = phase < 0.5 ? 0.55 : 0.20;
+
+  const [rr, rg, rb] = hexToRgb(SD.red);
+
+  ctx.save();
+
+  // Upper-right face (A→B→B2→A2)
+  ctx.fillStyle = `rgba(${rr},${rg},${rb},${alpha})`;
+  ctx.beginPath();
+  ctx.moveTo(A[0], A[1]);
+  ctx.lineTo(B[0], B[1]);
+  ctx.lineTo(B2[0], B2[1]);
+  ctx.lineTo(A2[0], A2[1]);
+  ctx.closePath();
+  ctx.fill();
+
+  // Lower-left face (A→D→D2→A2) — slightly dimmer
+  ctx.fillStyle = `rgba(${rr},${rg},${rb},${alpha * 0.7})`;
+  ctx.beginPath();
+  ctx.moveTo(A[0], A[1]);
+  ctx.lineTo(D[0], D[1]);
+  ctx.lineTo(D2[0], D2[1]);
+  ctx.lineTo(A2[0], A2[1]);
+  ctx.closePath();
+  ctx.fill();
+
+  // Roof (A2→B2→C2→D2)
+  ctx.fillStyle = `rgba(${rr},${rg},${rb},${alpha})`;
+  ctx.beginPath();
+  ctx.moveTo(A2[0], A2[1]);
+  ctx.lineTo(B2[0], B2[1]);
+  ctx.lineTo(C2[0], C2[1]);
+  ctx.lineTo(D2[0], D2[1]);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/**
+ * Draw 3 jagged smoke/glitch lines rising from the building roof center,
+ * matching sketch-D's CRIT smoke effect. Blinks at 1.1s interval.
+ */
+function drawSmokeLines(
+  ctx: CanvasRenderingContext2D,
+  roofCenter: [number, number],
+  time: number,
+): void {
+  const phase = (time % 1100) / 1100;
+  if (phase >= 0.5) return;
+
+  const cx = roofCenter[0];
+  const cy = roofCenter[1];
+
+  ctx.save();
+  ctx.strokeStyle = SD.red;
+  ctx.lineWidth = 0.8;
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.7;
+
+  for (let k = 0; k < 3; k++) {
+    const sx = cx + (k - 1) * 5;
+    ctx.beginPath();
+    ctx.moveTo(sx, cy - 4);
+    ctx.lineTo(sx - 2, cy - 12);
+    ctx.lineTo(sx + 1, cy - 22);
+    ctx.lineTo(sx - 1, cy - 32);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function drawLabel(
   ctx: CanvasRenderingContext2D,
   b: Building,
   bottomLeft: [number, number],
+  isCrit = false,
 ): void {
-  ctx.font = `${FONT_SIZE.label}px ${FONT_FAMILY}`;
-  const textWidth = ctx.measureText(b.label).width;
+  const displayLabel = isCrit ? `▲ ${b.label}` : b.label;
+  ctx.font = `${isCrit ? 'bold ' : ''}${FONT_SIZE.label}px ${FONT_FAMILY}`;
+  const textWidth = ctx.measureText(displayLabel).width;
   const padX = 4;
   const padY = 3;
   const plateW = textWidth + padX * 2;
@@ -447,5 +555,5 @@ function drawLabel(
   ctx.fillStyle = statusColor ?? SD.base2;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(b.label, plateX + plateW / 2, plateY + plateH / 2);
+  ctx.fillText(displayLabel, plateX + plateW / 2, plateY + plateH / 2);
 }

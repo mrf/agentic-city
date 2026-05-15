@@ -109,6 +109,7 @@ export function BottomStrip(): JSX.Element {
           <span style={S.sep}>·</span>
           <Hint keys={['D']} label="dispatch" />
           <Hint keys={['⌘K']} label="palette" />
+          <Hint keys={['X']} label="alarm" />
         </>
       )}
 

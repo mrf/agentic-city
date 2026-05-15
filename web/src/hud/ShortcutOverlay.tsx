@@ -72,10 +72,11 @@ const DISPATCH_SHORTCUTS: ShortcutCategory = {
   entries: [
     { keys: ['D'], label: 'Open dispatch wizard' },
     { keys: ['⌘K'], label: 'Command palette' },
+    { keys: ['X'], label: 'Toggle alarm overlay' },
     { keys: ['↑', '↓'], label: 'Navigate list' },
     { keys: ['Space'], label: 'Toggle selection' },
-    { keys: ['Enter'], label: 'Confirm / advance' },
-    { keys: ['Esc'], label: 'Back / cancel' },
+    { keys: ['Enter'], label: 'Confirm / dispatch' },
+    { keys: ['Esc'], label: 'Back / cancel / dismiss' },
     { keys: ['Tab'], label: 'Next step' },
   ],
 };

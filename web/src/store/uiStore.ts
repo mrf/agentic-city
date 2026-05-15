@@ -66,6 +66,9 @@ interface UiStore {
   dispatchRole: DispatchRole | null;
   commandPaletteOpen: boolean;
 
+  // Phase 2: Alarm
+  alarmActive: boolean;
+
   selectBuilding: (id: string | null) => void;
   setCursor: (id: string | null) => void;
   setFocusZone: (zone: FocusZone) => void;
@@ -88,6 +91,8 @@ interface UiStore {
   setDispatchRole: (role: DispatchRole | null) => void;
   openCommandPalette: () => void;
   closeCommandPalette: () => void;
+  toggleAlarm: () => void;
+  dismissAlarm: () => void;
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -116,6 +121,7 @@ export const useUiStore = create<UiStore>((set) => ({
   dispatchScope: [],
   dispatchRole: null,
   commandPaletteOpen: false,
+  alarmActive: false,
 
   selectBuilding: (id) => set({ selectedBuildingId: id }),
   setCursor: (id) => set({ cursorBuildingId: id }),
@@ -164,4 +170,12 @@ export const useUiStore = create<UiStore>((set) => ({
     commandPaletteOpen: false,
     focusZone: s.dispatchMode ? 'modal' : 'city',
   })),
+  toggleAlarm: () => set((s) => ({
+    alarmActive: !s.alarmActive,
+    focusZone: s.alarmActive ? 'city' : 'modal',
+  })),
+  dismissAlarm: () => set({
+    alarmActive: false,
+    focusZone: 'city',
+  }),
 }));

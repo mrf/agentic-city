@@ -10,6 +10,7 @@ import { drawDistricts } from './DistrictRenderer';
 import { drawBuildings, drawCursorHighlight, drawHoverHighlight } from './BuildingRenderer';
 import { drawRoads } from './RoadRenderer';
 import { drawAgents } from './AgentRenderer';
+import { drawLightningPaths } from './LightningRenderer';
 import { AnimationManager } from './AnimationManager';
 import type { CityState } from '../store/cityStore';
 import { sol as SD } from '../theme/colors';
@@ -109,6 +110,9 @@ export class CityRenderer {
     if (this.showRoads) {
       drawRoads(ctx, this.camera, this.city.roads, this.city.buildings, this.selectedBuildingId);
     }
+
+    // 3c. Lightning paths from error origin to affected dependencies
+    drawLightningPaths(ctx, this.camera, this.city.buildings, this.city.roads, performance.now());
 
     // 4. Buildings (back-to-front by gx+gy for occlusion)
     drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, performance.now());
