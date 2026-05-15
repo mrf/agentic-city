@@ -57,6 +57,17 @@ func (s *State) SetState(next model.CityState) {
 	s.dirty = true
 }
 
+// AddActivity appends an activity event to the current state. Thread-safe.
+// Re-marshals JSON and sets the dirty flag so the hub broadcasts the change.
+func (s *State) AddActivity(ev model.ActivityEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.Activities = model.AppendActivity(s.state.Activities, ev)
+	j, _ := json.Marshal(s.state)
+	s.stateJSON = j
+	s.dirty = true
+}
+
 // getStateJSON returns the pre-marshaled JSON without modifying the dirty flag.
 // Safe for read paths (e.g. seeding prevJSON on first connect) that must not
 // interfere with the broadcast loop's change detection.
