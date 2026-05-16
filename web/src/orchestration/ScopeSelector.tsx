@@ -1,6 +1,8 @@
-import type { CSSProperties } from 'react';
-import { useUiStore } from '../store/uiStore';
+import type { CSSProperties, KeyboardEvent } from 'react';
+import { useState } from 'react';
+
 import type { Building } from '../store/cityStore';
+import { useUiStore } from '../store/uiStore';
 import { sol, FONT, langColor } from '../hud/palette';
 
 interface ScopeSelectorProps {
@@ -17,7 +19,7 @@ const S: Record<string, CSSProperties> = {
     padding: '6px 12px 2px',
     color: sol.cyan,
     fontSize: 9,
-    textTransform: 'uppercase' as const,
+    textTransform: 'uppercase',
     letterSpacing: '0.08em',
     fontWeight: 'bold',
   },
@@ -44,7 +46,7 @@ const S: Record<string, CSSProperties> = {
     flex: 1,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap' as const,
+    whiteSpace: 'nowrap',
   },
   meta: {
     flexShrink: 0,
@@ -64,6 +66,7 @@ const S: Record<string, CSSProperties> = {
 export function ScopeSelector({ sortedBuildings, focusIndex }: ScopeSelectorProps): JSX.Element {
   const dispatchScope = useUiStore((s) => s.dispatchScope);
   const toggleScopeBuilding = useUiStore((s) => s.toggleScopeBuilding);
+  const [domFocusedId, setDomFocusedId] = useState<string | null>(null);
 
   const totalLoc = sortedBuildings
     .filter((b) => dispatchScope.includes(b.id))
@@ -82,12 +85,25 @@ export function ScopeSelector({ sortedBuildings, focusIndex }: ScopeSelectorProp
               <div style={S.districtHeader}>{b.districtId}/</div>
             )}
             <div
+              role="checkbox"
+              aria-checked={isSelected}
+              tabIndex={0}
               style={{
                 ...S.row,
                 background: isFocused ? `${sol.yellow}18` : 'transparent',
                 borderLeft: isFocused ? `2px solid ${sol.yellow}` : '2px solid transparent',
+                outline: domFocusedId === b.id ? `2px solid ${sol.yellow}` : 'none',
+                outlineOffset: -2,
               }}
               onClick={() => toggleScopeBuilding(b.id)}
+              onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+                if (e.key === ' ' || e.key === 'Enter') {
+                  toggleScopeBuilding(b.id);
+                  e.preventDefault();
+                }
+              }}
+              onFocus={() => setDomFocusedId(b.id)}
+              onBlur={() => setDomFocusedId(null)}
             >
               <span
                 style={{
