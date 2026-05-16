@@ -415,25 +415,26 @@ func runDemoTicker(ctx context.Context, state *hub.State, h *hub.Hub) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			curr := state.GetState()
 			changed := false
-			fi := 0
-			for i := range curr.Agents {
-				a := &curr.Agents[i]
-				if a.FromID != "" && a.ToID != "" {
-					a.FlyProgress += flySpeeds[fi%len(flySpeeds)]
-					fi++
-					if a.FlyProgress >= 1.0 {
-						// Completed arc — swap endpoints so the agent
-						// immediately starts the return journey.
-						a.FlyProgress = 0.0
-						a.FromID, a.ToID = a.ToID, a.FromID
+			state.Update(func(curr model.CityState) model.CityState {
+				fi := 0
+				for i := range curr.Agents {
+					a := &curr.Agents[i]
+					if a.FromID != "" && a.ToID != "" {
+						a.FlyProgress += flySpeeds[fi%len(flySpeeds)]
+						fi++
+						if a.FlyProgress >= 1.0 {
+							// Completed arc — swap endpoints so the agent
+							// immediately starts the return journey.
+							a.FlyProgress = 0.0
+							a.FromID, a.ToID = a.ToID, a.FromID
+						}
+						changed = true
 					}
-					changed = true
 				}
-			}
+				return curr
+			})
 			if changed {
-				state.SetState(curr)
 				h.Notify()
 			}
 		}
@@ -499,16 +500,17 @@ func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, stat
 					slog.Error("watcher: full rescan failed", "err", err)
 					continue
 				}
-				curr := state.GetState()
-				next.Agents = curr.Agents
-				next.Activities = curr.Activities
-				state.SetState(next)
+				state.Update(func(curr model.CityState) model.CityState {
+					next.Agents = curr.Agents
+					next.Activities = curr.Activities
+					return next
+				})
 				slog.Info("watcher: full rescan", "buildings", len(next.Buildings))
 			} else {
 				// Content-only changes — merge incrementally.
-				curr := state.GetState()
-				next := city.MergeBuildings(curr, update.Buildings)
-				state.SetState(next)
+				state.Update(func(curr model.CityState) model.CityState {
+					return city.MergeBuildings(curr, update.Buildings)
+				})
 			}
 
 			if h != nil {
@@ -580,9 +582,9 @@ func runMetricsWatcher(ctx context.Context, mw *repo.MetricsWatcher, state *hub.
 			if !ok {
 				return
 			}
-			curr := state.GetState()
-			next := city.ApplyMetrics(curr, src)
-			state.SetState(next)
+			state.Update(func(curr model.CityState) model.CityState {
+				return city.ApplyMetrics(curr, src)
+			})
 			if h != nil {
 				h.Notify()
 			}
