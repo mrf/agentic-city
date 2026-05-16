@@ -178,7 +178,7 @@ function DistrictBuildingPanel({ district }: { district: DistrictBuilding }): JS
 
 function AgentInspectPanel({ agent }: { agent: Agent }): JSX.Element {
   const tc = tierColor(agent.modelTier);
-  const pct = Math.max(0, Math.min(1, agent.progress ?? 0));
+  const pct = Math.max(0, Math.min(100, agent.progress ?? 0));
   return (
     <div style={S.section}>
       <div style={S.inspectHeader}>
@@ -205,7 +205,7 @@ function AgentInspectPanel({ agent }: { agent: Agent }): JSX.Element {
       )}
       <div style={S.row}>
         <span style={S.rowLabel}>progress</span>
-        <span style={{ ...S.rowValue, color: sol.base2 }}>{Math.round(pct * 100)}%</span>
+        <span style={{ ...S.rowValue, color: sol.base2 }}>{Math.round(pct)}%</span>
       </div>
       {agent.targetId && (
         <div style={S.row}>
