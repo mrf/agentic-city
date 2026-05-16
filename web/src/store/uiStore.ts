@@ -72,9 +72,12 @@ function isPhase2Enabled(): boolean {
 }
 
 interface UiStore {
-  // Selection
+  // Selection — file-level (L1/L2)
   selectedBuildingId: string | null;
   cursorBuildingId: string | null;
+  // Selection — district-level (L3)
+  selectedDistrictId: string | null;
+  cursorDistrictId: string | null;
   focusZone: FocusZone;
 
   // Zoom and camera (mirrors IsometricCamera state for React consumers)
@@ -109,6 +112,8 @@ interface UiStore {
 
   selectBuilding: (id: string | null) => void;
   setCursor: (id: string | null) => void;
+  selectDistrict: (id: string | null) => void;
+  setCursorDistrict: (id: string | null) => void;
   setFocusZone: (zone: FocusZone) => void;
   setZoom: (zoom: number) => void;
   setCamera: (x: number, y: number) => void;
@@ -136,6 +141,8 @@ interface UiStore {
 export const useUiStore = create<UiStore>((set) => ({
   selectedBuildingId: null,
   cursorBuildingId: null,
+  selectedDistrictId: null,
+  cursorDistrictId: null,
   focusZone: 'city',
 
   zoom: 1.0,
@@ -164,6 +171,8 @@ export const useUiStore = create<UiStore>((set) => ({
 
   selectBuilding: (id) => set({ selectedBuildingId: id }),
   setCursor: (id) => set({ cursorBuildingId: id }),
+  selectDistrict: (id) => set({ selectedDistrictId: id }),
+  setCursorDistrict: (id) => set({ cursorDistrictId: id }),
   setFocusZone: (zone) => set({ focusZone: zone }),
   setZoom: (zoom) => set((s) => ({ zoom, lodLevel: computeLodLevel(zoom, s.lodLevel) })),
   setCamera: (x, y) => set({ cameraX: x, cameraY: y }),

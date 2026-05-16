@@ -1,7 +1,7 @@
-import type { CSSProperties } from 'react';
-import { useCityStore } from '../store/cityStore';
+import { useMemo, type CSSProperties } from 'react';
+import { useCityStore, selectDistrictBuildings } from '../store/cityStore';
 import { useUiStore } from '../store/uiStore';
-import type { ActivityEvent, Building, Agent } from '../store/cityStore';
+import type { ActivityEvent, Building, Agent, DistrictBuilding } from '../store/cityStore';
 import { sol, langColor, coverageColor, ciColor, tierColor, severityColor, hudBase, TOP_BAR_H, BOTTOM_STRIP_H } from './palette';
 
 const RAIL_W = 220;
@@ -141,6 +141,41 @@ function BuildingPanel({ building }: { building: Building }): JSX.Element {
   );
 }
 
+function DistrictBuildingPanel({ district }: { district: DistrictBuilding }): JSX.Element {
+  const cov = district.coverage >= 0 ? `${Math.round(district.coverage * 100)}%` : '—';
+  const statuses = Object.entries(district.statusBreakdown).sort((a, b) => b[1] - a[1]);
+  return (
+    <div style={S.section}>
+      <div style={S.sectionHeader}>district</div>
+      <div style={{ ...S.row, paddingTop: 5 }}>
+        <span style={S.rowLabel}>name</span>
+        <span style={{ ...S.rowValue, color: sol.base2 }}>{district.label}</span>
+      </div>
+      <div style={S.row}>
+        <span style={S.rowLabel}>files</span>
+        <span style={S.rowValue}>{district.fileCount}</span>
+      </div>
+      <div style={S.row}>
+        <span style={S.rowLabel}>LOC</span>
+        <span style={S.rowValue}>{district.totalLoc.toLocaleString()}</span>
+      </div>
+      <div style={S.row}>
+        <span style={S.rowLabel}>cov</span>
+        <span style={{ ...S.rowValue, color: coverageColor(district.coverage) }}>{cov}</span>
+      </div>
+      {statuses.map(([status, count]) => (
+        <div key={status} style={S.row}>
+          <span style={S.rowLabel}>{status}</span>
+          <span style={{ ...S.rowValue, color: ciColor(status) }}>{count}</span>
+        </div>
+      ))}
+      <div style={{ ...S.row, paddingBottom: 5 }}>
+        <span style={{ ...S.rowLabel, color: sol.base00, fontSize: 9 }}>Enter → zoom L2</span>
+      </div>
+    </div>
+  );
+}
+
 function AgentInspectPanel({ agent }: { agent: Agent }): JSX.Element {
   const tc = tierColor(agent.modelTier);
   const pct = Math.max(0, Math.min(1, agent.progress ?? 0));
@@ -239,16 +274,33 @@ function StatsPanel(): JSX.Element {
 }
 
 export function RightRail(): JSX.Element {
-  const buildings = useCityStore((s) => s.city.buildings);
-  const activities = useCityStore((s) => s.city.activities);
-  const agents = useCityStore((s) => s.city.agents);
-  const selectedId = useUiStore((s) => s.selectedBuildingId);
-  const cursorId = useUiStore((s) => s.cursorBuildingId);
+  const city = useCityStore((s) => s.city);
+  const activities = city.activities;
+  const agents = city.agents;
+  const lodLevel = useUiStore((s) => s.lodLevel);
+  const selectedBuildingId = useUiStore((s) => s.selectedBuildingId);
+  const cursorBuildingId = useUiStore((s) => s.cursorBuildingId);
+  const cursorDistrictId = useUiStore((s) => s.cursorDistrictId);
   const inspectedAgentId = useUiStore((s) => s.inspectedAgentId);
 
-  const activeId = selectedId ?? cursorId;
-  const building = activeId ? buildings.find((b) => b.id === activeId) : null;
   const inspectedAgent = inspectedAgentId ? agents.find((a) => a.id === inspectedAgentId) : null;
+
+  // At L3: show the cursor district-building if one is active
+  const districtBuildings = useMemo(
+    () => lodLevel === 'L3' ? selectDistrictBuildings(city) : null,
+    [lodLevel, city],
+  );
+  const districtBuilding = districtBuildings && cursorDistrictId
+    ? districtBuildings.find((d) => d.id === cursorDistrictId) ?? null
+    : null;
+
+  // At L1/L2: show selected or cursor file-building
+  const activeBuildingId = selectedBuildingId ?? cursorBuildingId;
+  const building = lodLevel !== 'L3' && activeBuildingId
+    ? city.buildings.find((b) => b.id === activeBuildingId) ?? null
+    : null;
+
+  const showStats = !inspectedAgent && !districtBuilding && !building;
 
   // Show latest activities, most recent first, up to 12
   const recent = [...activities].reverse().slice(0, 12);
@@ -256,8 +308,9 @@ export function RightRail(): JSX.Element {
   return (
     <div style={S.rail}>
       {inspectedAgent && <AgentInspectPanel agent={inspectedAgent} />}
-      {!inspectedAgent && building && <BuildingPanel building={building} />}
-      {!inspectedAgent && !building && <StatsPanel />}
+      {!inspectedAgent && districtBuilding && <DistrictBuildingPanel district={districtBuilding} />}
+      {!inspectedAgent && !districtBuilding && building && <BuildingPanel building={building} />}
+      {showStats && <StatsPanel />}
 
       <div style={S.sectionHeader}>activity</div>
       <div style={S.activityList}>
