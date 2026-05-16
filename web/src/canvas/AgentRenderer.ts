@@ -299,8 +299,15 @@ let stagingSlotIndex = 0;
 
 /**
  * Draws an agent with no targetId and no flight path — these are agents whose
- * location is "unknown". They are rendered above the city centre, spread
- * horizontally so they remain visible and don't stack.
+ * location is "unknown". They are rendered above the city centre in a 3-column
+ * grid so multiple unlocated agents form a compact cluster rather than a
+ * single horizontal line.
+ *
+ * Layout (col × row, 0-indexed, 3 columns per row):
+ *   slot 0 → row 0 col 0 (left)
+ *   slot 1 → row 0 col 1 (centre)
+ *   slot 2 → row 0 col 2 (right)
+ *   slot 3 → row 1 col 0 …
  */
 function drawStagingAgent(
   ctx: CanvasRenderingContext2D,
@@ -310,13 +317,19 @@ function drawStagingAgent(
   time: number,
   animManager: AnimationManager,
 ): void {
-  // Park the UFO above the city centre with a horizontal offset per slot
-  // to avoid overlapping.
   const clampedScale = clampScale(camera.scale);
   const slot = stagingSlotIndex++;
-  const offsetX = (slot - 1) * STAGING_SLOT_SPACING * clampedScale;
+
+  // Pack into rows of 3 columns so agents form a 2D cluster, not a line.
+  const col = slot % 3;
+  const row = Math.floor(slot / 3);
+  // Centre each row: col 0 → −1×, col 1 → 0, col 2 → +1×
+  const offsetX = (col - 1) * STAGING_SLOT_SPACING * clampedScale;
+  // Each successive row is pushed further up in screen space.
+  const offsetY = row * STAGING_SLOT_SPACING * 0.75 * clampedScale;
+
   const sx = cityCenter[0] + offsetX;
-  const sy = cityCenter[1] - 100 * clampedScale + animManager.getHoverBob(agent.id, time);
+  const sy = cityCenter[1] - (100 + offsetY) * clampedScale + animManager.getHoverBob(agent.id, time);
 
   drawUFO(ctx, agent, sx, sy, camera.scale, time, animManager);
 }

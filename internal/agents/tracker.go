@@ -245,18 +245,18 @@ func agentID(s SessionState) string {
 	return s.ID
 }
 
-// colorForSource returns the UFO body colour for a given model family.
-// Colours come from the solarized-dark palette defined in sd-helpers.jsx.
+// colorForSource returns the logical colour name for a given model family.
+// The frontend agentColor() function maps these names to solarized-dark hex values.
 func colorForSource(source string) string {
 	switch strings.ToLower(source) {
 	case "claude":
-		return "#4a7a9c" // SD.blue — Anthropic
+		return "blue"
 	case "codex":
-		return "#6a8a4a" // SD.green — OpenAI
+		return "green"
 	case "gemini":
-		return "#b06a3a" // SD.orange — Google
+		return "orange"
 	default:
-		return "#4a7a9c"
+		return "blue"
 	}
 }
 

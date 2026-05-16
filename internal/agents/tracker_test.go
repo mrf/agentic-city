@@ -76,12 +76,12 @@ func TestColorForSource(t *testing.T) {
 		source string
 		want   string
 	}{
-		{"claude", "#4a7a9c"},
-		{"CLAUDE", "#4a7a9c"},
-		{"codex", "#6a8a4a"},
-		{"gemini", "#b06a3a"},
-		{"unknown", "#4a7a9c"},
-		{"", "#4a7a9c"},
+		{"claude", "blue"},
+		{"CLAUDE", "blue"},
+		{"codex", "green"},
+		{"gemini", "orange"},
+		{"unknown", "blue"},
+		{"", "blue"},
 	}
 
 	for _, tc := range cases {
@@ -334,8 +334,8 @@ func TestAgentsWorkModeWithFileEvent(t *testing.T) {
 	if a.Progress != 60 {
 		t.Errorf("Progress = %d, want 60", a.Progress)
 	}
-	if a.Color != "#4a7a9c" {
-		t.Errorf("Color = %q, want %q", a.Color, "#4a7a9c")
+	if a.Color != "blue" {
+		t.Errorf("Color = %q, want %q", a.Color, "blue")
 	}
 }
 
@@ -414,8 +414,8 @@ func TestAgentsIdleMode(t *testing.T) {
 	if a.ModelTier != "haiku" {
 		t.Errorf("ModelTier = %q, want %q", a.ModelTier, "haiku")
 	}
-	if a.Color != "#b06a3a" {
-		t.Errorf("Color = %q, want %q (gemini orange)", a.Color, "#b06a3a")
+	if a.Color != "orange" {
+		t.Errorf("Color = %q, want %q (gemini orange)", a.Color, "orange")
 	}
 }
 

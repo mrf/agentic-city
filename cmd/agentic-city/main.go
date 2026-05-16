@@ -65,6 +65,10 @@ func main() {
 	h := hub.New(cityState)
 	go h.Run(ctx)
 
+	if *demo {
+		go runDemoTicker(ctx, cityState, h)
+	}
+
 	if !*demo {
 		tracker := agents.StartMonitor(ctx, *repoPath, cityState, h)
 		go runWatcher(ctx, *repoPath, buildCfg, cityState, h, tracker)
@@ -292,7 +296,7 @@ func makeDemoBuildings(rng *rand.Rand, districts []model.District) []model.Build
 }
 
 func makeDemoAgents(rng *rand.Rand, buildings []model.Building) []model.Agent {
-	colors := []string{"#4a7a9c", "#4a7a9c", "#6a8a4a", "#b06a3a"} // blue×2, green, orange
+	colors := []string{"blue", "blue", "green", "orange"}
 	tasks := []string{
 		"Implementing WebSocket hub",
 		"Refactoring treemap layout",
@@ -389,6 +393,51 @@ func makeDemoActivities() []model.ActivityEvent {
 		})
 	}
 	return activities
+}
+
+// runDemoTicker advances flying-agent positions in demo mode so UFOs animate
+// smoothly across bezier arcs rather than sitting frozen at their initial
+// FlyProgress values. It ticks at 100 ms (matching the hub's broadcast cadence)
+// and advances each flying agent at a distinct speed so the motion looks varied.
+// When an agent completes its arc (FlyProgress ≥ 1.0) it reverses direction,
+// creating a continuous back-and-forth loop between its two endpoint buildings.
+func runDemoTicker(ctx context.Context, state *hub.State, h *hub.Hub) {
+	const tick = 100 * time.Millisecond
+	// FlyProgress increments per tick — yields flight durations of roughly
+	// 7 s, 10 s, 6 s, and 9 s respectively.
+	flySpeeds := [4]float64{0.014, 0.010, 0.017, 0.011}
+
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			curr := state.GetState()
+			changed := false
+			fi := 0
+			for i := range curr.Agents {
+				a := &curr.Agents[i]
+				if a.FromID != "" && a.ToID != "" {
+					a.FlyProgress += flySpeeds[fi%len(flySpeeds)]
+					fi++
+					if a.FlyProgress >= 1.0 {
+						// Completed arc — swap endpoints so the agent
+						// immediately starts the return journey.
+						a.FlyProgress = 0.0
+						a.FromID, a.ToID = a.ToID, a.FromID
+					}
+					changed = true
+				}
+			}
+			if changed {
+				state.SetState(curr)
+				h.Notify()
+			}
+		}
+	}
 }
 
 func clamp(v, lo, hi float64) float64 {
