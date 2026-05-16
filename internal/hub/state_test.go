@@ -3,6 +3,7 @@ package hub
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/mferree/agent-city/internal/model"
@@ -70,6 +71,66 @@ func TestState_DirtyFlagLifecycle(t *testing.T) {
 	_, dirty = s.consumeStateJSON()
 	if !dirty {
 		t.Error("expected State to be dirty after SetState")
+	}
+}
+
+// TestState_UpdateAtomicNoRace verifies that concurrent Update calls do not
+// lose each other's changes. With go test -race this detects data races.
+//
+// Two goroutines run in parallel: one appends agents, the other updates
+// building statuses. Both use Update so their read-modify-write cycles are
+// atomic; neither goroutine's write should be silently overwritten.
+func TestState_UpdateAtomicNoRace(t *testing.T) {
+	t.Parallel()
+
+	initial := model.CityState{
+		Buildings: []model.Building{{ID: "b1", Status: "ok"}},
+		Agents:    []model.Agent{},
+	}
+	s := NewState(initial)
+
+	const iterations = 200
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine 1: repeatedly sets building status.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			s.Update(func(curr model.CityState) model.CityState {
+				if len(curr.Buildings) > 0 {
+					curr.Buildings[0].Status = "warn"
+				}
+				return curr
+			})
+		}
+	}()
+
+	// Goroutine 2: repeatedly appends an agent then removes it.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			s.Update(func(curr model.CityState) model.CityState {
+				curr.Agents = append(curr.Agents, model.Agent{ID: "a1", Mode: "work"})
+				return curr
+			})
+			s.Update(func(curr model.CityState) model.CityState {
+				curr.Agents = []model.Agent{}
+				return curr
+			})
+		}
+	}()
+
+	wg.Wait()
+
+	// After all updates, the building status set by goroutine 1 must be present
+	// (the last Update from goroutine 1 always writes "warn").
+	final := s.GetState()
+	if len(final.Buildings) == 0 {
+		t.Fatal("buildings slice was lost")
+	}
+	if final.Buildings[0].Status != "warn" {
+		t.Errorf("building status lost: got %q, want %q", final.Buildings[0].Status, "warn")
 	}
 }
 

@@ -51,6 +51,25 @@ func (s *State) GetState() model.CityState {
 	return deepCopyState(s.state)
 }
 
+// Update atomically reads the current state, passes a deep copy to fn,
+// and stores the value fn returns as the new state. Thread-safe.
+//
+// Use this instead of paired GetState/SetState calls to prevent lost-update
+// races between concurrent goroutines.
+func (s *State) Update(fn func(model.CityState) model.CityState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := fn(deepCopyState(s.state))
+	j, err := json.Marshal(next)
+	s.state = next
+	if err != nil {
+		slog.Error("Update: failed to marshal state", "err", err)
+	} else {
+		s.stateJSON = j
+	}
+	s.dirty = true
+}
+
 // SetState replaces the current CityState and pre-marshals its JSON
 // representation. Thread-safe.
 func (s *State) SetState(next model.CityState) {

@@ -63,9 +63,10 @@ func StartMonitor(ctx context.Context, repoPath string, cityState *hub.State, h 
 		}
 		sessions := mon.Snapshot()
 		syncTracker(tracker, sessions, absRepo)
-		curr := cityState.GetState()
-		curr.Agents = tracker.Agents(curr.Buildings)
-		cityState.SetState(curr)
+		cityState.Update(func(curr model.CityState) model.CityState {
+			curr.Agents = tracker.Agents(curr.Buildings)
+			return curr
+		})
 		if h != nil {
 			h.Notify()
 		}
