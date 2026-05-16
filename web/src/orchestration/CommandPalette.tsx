@@ -144,19 +144,28 @@ export function CommandPalette(): JSX.Element | null {
 
   return (
     <div style={S.backdrop} onClick={closeCommandPalette}>
-      <div ref={containerRef} style={S.palette} onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        style={S.palette}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
         <div style={S.inputRow}>
-          <span style={S.prompt}>▶</span>
+          <span style={S.prompt} aria-hidden="true">▶</span>
           <input
             ref={inputRef}
             style={S.input}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="choose role..."
+            aria-label="Search roles"
             spellCheck={false}
           />
         </div>
-        <div style={S.list}>
+        <div role="listbox" aria-label="Roles" style={S.list}>
           {filtered.length === 0 ? (
             <div style={S.empty}>no matching roles</div>
           ) : (
@@ -165,6 +174,8 @@ export function CommandPalette(): JSX.Element | null {
               return (
                 <div
                   key={role.id}
+                  role="option"
+                  aria-selected={isFocused}
                   style={{
                     ...S.item,
                     background: isFocused ? `${sol.yellow}18` : 'transparent',

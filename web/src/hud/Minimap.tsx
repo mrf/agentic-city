@@ -212,7 +212,10 @@ function MinimapCanvas(): JSX.Element {
   }, [zoom, cameraX, cameraY, proj]);
 
   return (
-    <div
+    <canvas
+      ref={canvasRef}
+      role="img"
+      aria-label="Minimap overview of the city"
       style={{
         position: 'fixed',
         bottom: BOTTOM_STRIP_H + 8,

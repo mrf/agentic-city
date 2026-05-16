@@ -50,10 +50,11 @@ const S: Record<string, CSSProperties> = {
 };
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }): JSX.Element {
+  const ariaLabel = label.trim() ? `${label.trim()} ${value}` : value;
   return (
-    <span>
-      <span style={S.label}>{label}</span>
-      <span style={{ color: color ?? sol.base2 }}>{value}</span>
+    <span aria-label={ariaLabel}>
+      <span style={S.label} aria-hidden="true">{label}</span>
+      <span style={{ color: color ?? sol.base2 }} aria-hidden="true">{value}</span>
     </span>
   );
 }
@@ -70,7 +71,7 @@ export function TopBar(): JSX.Element {
       : '—';
 
   return (
-    <div style={S.bar}>
+    <header style={S.bar}>
       {/* Left: repo identity */}
       <div style={S.identity}>
         <Stat label="" value={repoInfo.name || 'agentic-city'} color={sol.base2} />
@@ -99,6 +100,6 @@ export function TopBar(): JSX.Element {
           </>
         )}
       </div>
-    </div>
+    </header>
   );
 }

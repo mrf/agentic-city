@@ -371,10 +371,17 @@ export function DispatchWizard(): JSX.Element | null {
   return (
     // tabIndex={-1} lets the panel receive programmatic focus (initial focus on open)
     // Tab is already trapped by the global keydown handler above (always e.preventDefault())
-    <div ref={panelRef} style={{ ...S.panel, outline: 'none' }} tabIndex={-1}>
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dispatch-wizard-title"
+      style={{ ...S.panel, outline: 'none' }}
+      tabIndex={-1}
+    >
       {/* Header */}
       <div style={S.header}>
-        <span style={S.headerLabel}>▶ dispatch</span>
+        <span id="dispatch-wizard-title" style={S.headerLabel}>▶ dispatch</span>
         <span style={S.headerInfo}>
           step {dispatchStep} of 3 — {STEP_LABELS[dispatchStep]}
         </span>

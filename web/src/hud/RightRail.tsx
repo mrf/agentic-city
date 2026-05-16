@@ -115,7 +115,7 @@ const S: Record<string, CSSProperties> = {
 function BuildingPanel({ building }: { building: Building }): JSX.Element {
   const cov = building.coverage >= 0 ? `${Math.round(building.coverage * 100)}%` : '—';
   return (
-    <div style={S.section}>
+    <section style={S.section} aria-label="Selected file">
       <div style={S.sectionHeader}>selected</div>
       <div style={{ ...S.row, paddingTop: 5 }}>
         <span style={S.rowLabel}>file</span>
@@ -137,7 +137,7 @@ function BuildingPanel({ building }: { building: Building }): JSX.Element {
         <span style={S.rowLabel}>status</span>
         <span style={{ ...S.rowValue, color: ciColor(building.status) }}>{building.status}</span>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -145,7 +145,7 @@ function DistrictBuildingPanel({ district }: { district: DistrictBuilding }): JS
   const cov = district.coverage >= 0 ? `${Math.round(district.coverage * 100)}%` : '—';
   const statuses = Object.entries(district.statusBreakdown).sort((a, b) => b[1] - a[1]);
   return (
-    <div style={S.section}>
+    <section style={S.section} aria-label="District">
       <div style={S.sectionHeader}>district</div>
       <div style={{ ...S.row, paddingTop: 5 }}>
         <span style={S.rowLabel}>name</span>
@@ -172,7 +172,7 @@ function DistrictBuildingPanel({ district }: { district: DistrictBuilding }): JS
       <div style={{ ...S.row, paddingBottom: 5 }}>
         <span style={{ ...S.rowLabel, color: sol.base00, fontSize: 9 }}>Enter → zoom L2</span>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -180,7 +180,7 @@ function AgentInspectPanel({ agent }: { agent: Agent }): JSX.Element {
   const tc = tierColor(agent.modelTier);
   const pct = Math.max(0, Math.min(100, agent.progress ?? 0));
   return (
-    <div style={S.section}>
+    <section style={S.section} aria-label="Agent inspect">
       <div style={S.inspectHeader}>
         <span>inspect</span>
         <span style={{ color: sol.base00 }}>press I to close</span>
@@ -219,7 +219,7 @@ function AgentInspectPanel({ agent }: { agent: Agent }): JSX.Element {
           <span style={{ ...S.rowValue, color: sol.red }}>{agent.errorMsg}</span>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -241,7 +241,7 @@ function StatsPanel(): JSX.Element {
   const stats = useCityStore((s) => s.city.stats);
   const cov = stats.coverage >= 0 ? `${Math.round(stats.coverage * 100)}%` : '—';
   return (
-    <div style={S.section}>
+    <section style={S.section} aria-label="Stats">
       <div style={S.sectionHeader}>stats</div>
       <div style={S.statsGrid}>
         <div style={S.row}>
@@ -269,7 +269,7 @@ function StatsPanel(): JSX.Element {
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -306,26 +306,26 @@ export function RightRail(): JSX.Element {
   const recent = [...activities].reverse().slice(0, 12);
 
   return (
-    <div style={S.rail}>
+    <aside style={S.rail} aria-label="Details">
       {inspectedAgent && <AgentInspectPanel agent={inspectedAgent} />}
       {!inspectedAgent && districtBuilding && <DistrictBuildingPanel district={districtBuilding} />}
       {!inspectedAgent && !districtBuilding && building && <BuildingPanel building={building} />}
       {showStats && <StatsPanel />}
 
       <div style={S.sectionHeader}>activity</div>
-      <div style={S.activityList}>
+      <section style={S.activityList} aria-label="Activity log">
         {recent.length === 0 ? (
           <div style={S.empty}>no recent activity</div>
         ) : (
           recent.map((ev, i) => <ActivityRow key={i} event={ev} />)
         )}
-      </div>
+      </section>
 
       {!inspectedAgent && building && (
         <div style={{ borderTop: `1px solid ${sol.base01}` }}>
           <StatsPanel />
         </div>
       )}
-    </div>
+    </aside>
   );
 }

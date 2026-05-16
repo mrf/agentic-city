@@ -120,7 +120,7 @@ function AgentRow({ agent, index, focused }: { agent: Agent; index: number; focu
     : S.agentRow;
 
   return (
-    <div style={rowStyle}>
+    <div role="listitem" aria-label={`Agent ${agent.id}, ${agent.mode || 'idle'}`} style={rowStyle}>
       <div style={S.agentTop}>
         <span style={S.keyHint}>{index < 9 ? index + 1 : ''}</span>
         <span style={{ ...S.dot, background: agent.color || sol.base00 }} />
@@ -163,9 +163,9 @@ export function LeftRail(): JSX.Element {
   const focusedAgentIndex = useUiStore((s) => s.focusedAgentIndex);
 
   return (
-    <div style={S.rail}>
+    <nav style={S.rail} aria-label="Agents">
       <div style={S.header}>agents {agents.length > 0 ? `(${agents.length})` : ''}</div>
-      <div style={S.agentList}>
+      <div role="list" style={S.agentList}>
         {agents.length === 0 ? (
           <div style={S.empty}>no active agents</div>
         ) : (
@@ -174,6 +174,6 @@ export function LeftRail(): JSX.Element {
           ))
         )}
       </div>
-    </div>
+    </nav>
   );
 }
