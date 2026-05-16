@@ -158,7 +158,9 @@ export function useCityKeyboard(
   const alarmActive = useUiStore((s) => s.alarmActive);
   const toggleAlarm = useUiStore((s) => s.toggleAlarm);
 
-  // Ref holds latest reactive state so the keydown handler stays stable
+  // Ref holds latest reactive state so the keydown handler stays stable.
+  // Updated on every render, so it always reflects current store values —
+  // including building list changes that don't originate from key actions.
   const stateRef = useRef({
     buildings, districts, agents, cursorBuildingId, cursorDistrictId, lodLevel,
     focusZone, showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
@@ -169,6 +171,15 @@ export function useCityKeyboard(
     focusZone, showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
     phase2, dispatchMode, commandPaletteOpen, alarmActive,
   };
+
+  // Sanitize cursor when the building list changes. If cursorBuildingId no
+  // longer refers to an existing building (removed while navigating), reset
+  // it immediately rather than waiting for the next keypress to discover it.
+  useEffect(() => {
+    if (cursorBuildingId !== null && !buildings.some((b) => b.id === cursorBuildingId)) {
+      setCursor(null);
+    }
+  }, [buildings, cursorBuildingId, setCursor]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
