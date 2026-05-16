@@ -128,11 +128,11 @@ func TestSourceColor(t *testing.T) {
 		source string
 		want   string
 	}{
-		{"claude", "#4a7a9c"},
-		{"codex", "#6a8a4a"},
-		{"gemini", "#b06a3a"},
-		{"unknown", "#657b83"},
-		{"", "#657b83"},
+		{"claude", "blue"},
+		{"codex", "green"},
+		{"gemini", "orange"},
+		{"unknown", "grey"},
+		{"", "grey"},
 	}
 	for _, tc := range cases {
 		got := sourceColor(tc.source)
@@ -173,9 +173,9 @@ func TestSessionsToAgents_colorAndMode(t *testing.T) {
 	agents := sessionsToAgents(sessions, "")
 
 	wantByID := map[string]model.Agent{
-		"claude:c1": {Color: "#4a7a9c", Mode: "work"},
-		"codex:x1":  {Color: "#6a8a4a", Mode: "idle"},
-		"gemini:g1": {Color: "#b06a3a", Mode: "idle"},
+		"claude:c1": {Color: "blue", Mode: "work"},
+		"codex:x1":  {Color: "green", Mode: "idle"},
+		"gemini:g1": {Color: "orange", Mode: "idle"},
 	}
 
 	if len(agents) != len(wantByID) {
