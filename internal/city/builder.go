@@ -154,16 +154,26 @@ func MergeBuildings(current model.CityState, updates []model.Building) model.Cit
 
 // computeStats derives RepoStats from a slice of buildings.
 // Coverage is the mean of all buildings with known coverage (>= 0).
+// TestsPassing counts buildings with Status == "ok".
+// TestsTotal counts buildings with Status != "unknown".
 func computeStats(buildings []model.Building) model.RepoStats {
 	var totalLOC int
 	var coverageSum float64
 	coveredCount := 0
+	testsPassing := 0
+	testsTotal := 0
 
 	for _, b := range buildings {
 		totalLOC += b.LOC
 		if b.Coverage >= 0 {
 			coverageSum += b.Coverage
 			coveredCount++
+		}
+		if b.Status != "unknown" {
+			testsTotal++
+			if b.Status == "ok" {
+				testsPassing++
+			}
 		}
 	}
 
@@ -173,8 +183,10 @@ func computeStats(buildings []model.Building) model.RepoStats {
 	}
 
 	return model.RepoStats{
-		FileCount: len(buildings),
-		TotalLOC:  totalLOC,
-		Coverage:  avgCoverage,
+		FileCount:    len(buildings),
+		TotalLOC:     totalLOC,
+		Coverage:     avgCoverage,
+		TestsPassing: testsPassing,
+		TestsTotal:   testsTotal,
 	}
 }

@@ -298,6 +298,67 @@ func TestGatherRepoInfo_SelfRepo(t *testing.T) {
 	}
 }
 
+// ─── computeStats test counts ────────────────────────────────────────────────
+
+func TestComputeStats_TestCounts(t *testing.T) {
+	cases := []struct {
+		name        string
+		buildings   []model.Building
+		wantPassing int
+		wantTotal   int
+	}{
+		{
+			name: "all unknown — zero counts",
+			buildings: []model.Building{
+				{ID: "a.go", LOC: 10, Status: "unknown"},
+				{ID: "b.go", LOC: 20, Status: "unknown"},
+			},
+			wantPassing: 0,
+			wantTotal:   0,
+		},
+		{
+			name: "mix of ok, err, unknown",
+			buildings: []model.Building{
+				{ID: "a.go", LOC: 10, Status: "ok"},
+				{ID: "b.go", LOC: 20, Status: "ok"},
+				{ID: "c.go", LOC: 30, Status: "err"},
+				{ID: "d.go", LOC: 40, Status: "unknown"},
+			},
+			wantPassing: 2,
+			wantTotal:   3,
+		},
+		{
+			name: "all ok",
+			buildings: []model.Building{
+				{ID: "a.go", LOC: 10, Status: "ok"},
+				{ID: "b.go", LOC: 20, Status: "ok"},
+			},
+			wantPassing: 2,
+			wantTotal:   2,
+		},
+		{
+			name: "all err",
+			buildings: []model.Building{
+				{ID: "a.go", LOC: 10, Status: "err"},
+				{ID: "b.go", LOC: 20, Status: "err"},
+			},
+			wantPassing: 0,
+			wantTotal:   2,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stats := computeStats(tc.buildings)
+			if stats.TestsPassing != tc.wantPassing {
+				t.Errorf("TestsPassing = %d, want %d", stats.TestsPassing, tc.wantPassing)
+			}
+			if stats.TestsTotal != tc.wantTotal {
+				t.Errorf("TestsTotal = %d, want %d", stats.TestsTotal, tc.wantTotal)
+			}
+		})
+	}
+}
+
 // ─── ApplyMetrics ─────────────────────────────────────────────────────────────
 
 func TestApplyMetrics(t *testing.T) {
