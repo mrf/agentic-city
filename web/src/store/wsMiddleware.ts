@@ -134,11 +134,20 @@ export function subscribeWsStatus(cb: StatusCallback): () => void {
 
 // ── WebSocket connection ───────────────────────────────────────────────────────
 
-const RECONNECT_DELAY_MS = 3_000;
+const BACKOFF_BASE_MS = 1_000;
+const BACKOFF_MAX_MS = 30_000;
+const BACKOFF_JITTER = 0.2;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let stopped = false;
+let reconnectAttempt = 0;
+
+function backoffDelay(): number {
+  const base = Math.min(BACKOFF_BASE_MS * 2 ** reconnectAttempt, BACKOFF_MAX_MS);
+  const jitter = base * BACKOFF_JITTER * (2 * Math.random() - 1);
+  return Math.round(base + jitter);
+}
 
 function wsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -172,6 +181,7 @@ function connect(): void {
 
   ws.onopen = () => {
     notifyStatus('connected');
+    reconnectAttempt = 0;
     if (reconnectTimer !== null) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -184,7 +194,8 @@ function connect(): void {
     ws = null;
     notifyStatus('disconnected');
     if (!stopped) {
-      reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
+      reconnectTimer = setTimeout(connect, backoffDelay());
+      reconnectAttempt++;
     }
   };
 
@@ -199,6 +210,7 @@ function connect(): void {
  */
 export function startWs(): void {
   stopped = false;
+  reconnectAttempt = 0;
   connect();
 }
 
