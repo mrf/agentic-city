@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { computeLodLevel, LOD_THRESHOLDS } from './uiStore';
 
 describe('LOD_THRESHOLDS', () => {
-  it('L2.leave is at a usable zoom level (>= 1.5)', () => {
-    // Before the fix, L2.leave was 0.9 — far too zoomed out.
-    // Buildings must still be readable (not microscopic) at the transition.
-    expect(LOD_THRESHOLDS.L2.leave).toBeGreaterThanOrEqual(1.5);
+  it('L2.leave is at a usable zoom level (>= 2.0)', () => {
+    // Raised from 1.5 → 2.0 (2 wheel notches sooner) so LOD switches before
+    // buildings shrink to microscopic. Original pre-fix value was 0.9.
+    expect(LOD_THRESHOLDS.L2.leave).toBeGreaterThanOrEqual(2.0);
   });
 
   it('L2.enter is above L2.leave to maintain hysteresis (avoid flicker)', () => {
@@ -24,12 +24,10 @@ describe('computeLodLevel — L2/L3 boundary', () => {
     expect(computeLodLevel(justBelow, 'L2')).toBe('L3');
   });
 
-  it('old threshold (0.9) no longer triggers L2 → L3', () => {
-    // With the raised threshold, zooming to 0.9 should already be in L3,
-    // but when computing from L2 state the value < new leave triggers L3.
-    // Key assertion: L2.leave must be well above 0.9 so the transition is
-    // earlier (at a more usable zoom), not later.
-    expect(LOD_THRESHOLDS.L2.leave).toBeGreaterThan(0.9);
+  it('previous thresholds (0.9, 1.5) no longer trigger L2 → L3', () => {
+    // L2.leave was 0.9 before first fix, 1.5 before second fix.
+    // Now raised to 2.0 so the transition triggers 2 wheel notches sooner.
+    expect(LOD_THRESHOLDS.L2.leave).toBeGreaterThan(1.5);
   });
 
   it('transitions L3 → L2 at the new enter threshold', () => {

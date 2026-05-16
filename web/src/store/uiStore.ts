@@ -13,7 +13,7 @@ export type LodLevel = 'L1' | 'L2' | 'L3' | 'L4';
  */
 export const LOD_THRESHOLDS = {
   L1: { leave: 3.5, enter: 4.5 },  // function-level: highest zoom
-  L2: { leave: 1.5, enter: 2.0 },  // file-level: collapse to districts before buildings become microscopic
+  L2: { leave: 2.0, enter: 2.6 },  // file-level: collapse to districts before buildings become microscopic
   L3: { leave: 0.3, enter: 0.4 },  // module-level
   // L4 (codebase/orbit) is below all L3 thresholds
 } as const;
