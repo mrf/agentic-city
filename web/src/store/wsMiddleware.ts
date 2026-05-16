@@ -96,7 +96,6 @@ function applyOp(doc: unknown, op: JsonPatchOp): unknown {
     case 'remove':
       return removeAt(doc, segments);
     default:
-      console.warn('[ws] Unsupported patch op:', op.op);
       return doc;
   }
 }
@@ -151,7 +150,6 @@ function handleMessage(raw: MessageEvent): void {
   try {
     msg = JSON.parse(raw.data as string) as WsMessage;
   } catch {
-    console.error('[ws] Failed to parse message:', raw.data);
     return;
   }
 
@@ -162,8 +160,6 @@ function handleMessage(raw: MessageEvent): void {
   } else if (msg.type === 'state.patch') {
     const next = applyPatches(store.city, msg.patches) as CityState;
     store.setCity(next);
-  } else {
-    console.warn('[ws] Unknown message type:', (msg as { type: string }).type);
   }
 }
 
@@ -175,7 +171,6 @@ function connect(): void {
   notifyStatus('connecting');
 
   ws.onopen = () => {
-    console.log('[ws] Connected');
     notifyStatus('connected');
     if (reconnectTimer !== null) {
       clearTimeout(reconnectTimer);
@@ -189,13 +184,11 @@ function connect(): void {
     ws = null;
     notifyStatus('disconnected');
     if (!stopped) {
-      console.log(`[ws] Disconnected — reconnecting in ${RECONNECT_DELAY_MS}ms`);
       reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
     }
   };
 
-  ws.onerror = (err) => {
-    console.error('[ws] Error:', err);
+  ws.onerror = () => {
     // onclose fires after onerror, so reconnect is handled there
   };
 }
