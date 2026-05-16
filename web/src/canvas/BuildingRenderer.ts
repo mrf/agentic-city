@@ -153,7 +153,10 @@ function drawBuildingFaded(
  *   D = (gx, gy+gh)        — lower-left vertex
  *
  * Visible side faces: A-B wall (upper-right) and A-D wall (lower-left).
- * Hidden back faces: B-C wall and D-C wall.
+ * Hidden back faces: B-C wall and D-C wall (3D geometry).
+ *
+ * 2D silhouette edges (always solid): A→B, D→C, C→C2, D→A, and all roof/face edges.
+ * Only B→C is truly hidden in the 2D projection and drawn dashed.
  */
 function drawBuilding(
   ctx: CanvasRenderingContext2D,
@@ -189,37 +192,40 @@ function drawBuilding(
   ctx.closePath();
   ctx.fill();
 
-  // --- 2. Hidden back edges (dashed) ---
-  ctx.save();
-  ctx.setLineDash([2, 2]);
-  ctx.strokeStyle = SD.base01;
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  // B -> C base edge (hidden right-side base)
-  ctx.moveTo(B[0], B[1]);
-  ctx.lineTo(C[0], C[1]);
-  // C -> C2 vertical edge (hidden far corner)
-  ctx.lineTo(C2[0], C2[1]);
-  ctx.stroke();
-  // D -> C base edge (hidden left-side base)
-  ctx.beginPath();
-  ctx.moveTo(D[0], D[1]);
-  ctx.lineTo(C[0], C[1]);
-  ctx.stroke();
-  ctx.restore();
-
-  // --- 3. Base outline ---
+  // --- 2. Base outline — solid silhouette edges (A→B, C→D→A); B→C is hidden and drawn dashed below ---
+  // D→C and C→C2 are on the 2D convex hull of the projected building and must be solid.
   ctx.strokeStyle = strokeColor;
   ctx.lineWidth = 0.85;
   ctx.globalAlpha = 0.85;
   ctx.beginPath();
   ctx.moveTo(A[0], A[1]);
-  ctx.lineTo(B[0], B[1]);
-  ctx.lineTo(C[0], C[1]);
-  ctx.lineTo(D[0], D[1]);
-  ctx.closePath();
+  ctx.lineTo(B[0], B[1]);  // A→B: front edge of right face (visible boundary)
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(C[0], C[1]);
+  ctx.lineTo(D[0], D[1]);  // C→D: lower silhouette edge
+  ctx.lineTo(A[0], A[1]);  // D→A: left silhouette edge
   ctx.stroke();
   ctx.globalAlpha = 1;
+
+  // --- 3. Hidden back base edge B→C (dashed) + right silhouette C→C2 (solid) ---
+  // B→C lies inside the 2D projection hull — it is hidden behind the right face in 3D.
+  // C→C2 is the rightmost vertical boundary of the building silhouette — a visible edge.
+  ctx.save();
+  ctx.setLineDash([2, 2]);
+  ctx.strokeStyle = SD.base01;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(B[0], B[1]);
+  ctx.lineTo(C[0], C[1]);
+  ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 0.85;
+  ctx.beginPath();
+  ctx.moveTo(C[0], C[1]);
+  ctx.lineTo(C2[0], C2[1]);
+  ctx.stroke();
 
   // --- 4. Side faces (language-tinted, semi-transparent) ---
 
@@ -700,7 +706,22 @@ function drawDistrictBuilding(
   ctx.closePath();
   ctx.fill();
 
-  // 2. Hidden back edges (dashed)
+  // 2. Base outline — solid silhouette edges (A→B, C→D→A); B→C is hidden and drawn dashed below.
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1.2;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(A[0], A[1]);
+  ctx.lineTo(B[0], B[1]);  // A→B: front edge of right face (visible boundary)
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(C[0], C[1]);
+  ctx.lineTo(D[0], D[1]);  // C→D: lower silhouette edge
+  ctx.lineTo(A[0], A[1]);  // D→A: left silhouette edge
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // 3. Hidden back base edge B→C (dashed) + right silhouette C→C2 (solid)
   ctx.save();
   ctx.setLineDash([2, 2]);
   ctx.strokeStyle = SD.base01;
@@ -708,26 +729,14 @@ function drawDistrictBuilding(
   ctx.beginPath();
   ctx.moveTo(B[0], B[1]);
   ctx.lineTo(C[0], C[1]);
-  ctx.lineTo(C2[0], C2[1]);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(D[0], D[1]);
-  ctx.lineTo(C[0], C[1]);
   ctx.stroke();
   ctx.restore();
-
-  // 3. Base outline
   ctx.strokeStyle = borderColor;
   ctx.lineWidth = 1.2;
-  ctx.globalAlpha = 0.9;
   ctx.beginPath();
-  ctx.moveTo(A[0], A[1]);
-  ctx.lineTo(B[0], B[1]);
-  ctx.lineTo(C[0], C[1]);
-  ctx.lineTo(D[0], D[1]);
-  ctx.closePath();
+  ctx.moveTo(C[0], C[1]);
+  ctx.lineTo(C2[0], C2[1]);
   ctx.stroke();
-  ctx.globalAlpha = 1;
 
   // 4. Side faces — outline only
   ctx.strokeStyle = borderColor;
