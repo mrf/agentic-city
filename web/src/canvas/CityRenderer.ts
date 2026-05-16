@@ -3,6 +3,10 @@
  *
  * Owns the <canvas> element, draws the grid background, districts, and
  * buildings each frame using the IsometricCamera for projection.
+ *
+ * L2↔L3 LOD transitions are animated as 300 ms ease-in-out crossfades.
+ * Both LOD layers are rendered to an offscreen canvas and composited at
+ * complementary alphas so neither layer internally overrides globalAlpha.
  */
 
 import { IsometricCamera } from './IsometricCamera';
@@ -23,6 +27,20 @@ import { selectDistrictBuildings } from '../store/cityStore';
 import type { LodLevel } from '../store/uiStore';
 import { sol as SD } from '../theme/colors';
 
+/** Duration of the L2↔L3 crossfade in milliseconds. */
+const LOD_TRANSITION_MS = 300;
+
+interface LodTransition {
+  fromLevel: LodLevel;
+  toLevel: LodLevel;
+  startTime: number;
+}
+
+/** Smooth ease-in-out cubic: 0 → 1 as t goes 0 → 1. */
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 export class CityRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -33,11 +51,28 @@ export class CityRenderer {
   private hasFitted = false;
   showLabels = true;
   showRoads = false;
-  lodLevel: LodLevel = 'L2';
   cursorBuildingId: string | null = null;
   cursorDistrictId: string | null = null;
   selectedBuildingId: string | null = null;
   hoveredBuildingId: string | null = null;
+
+  // LOD transition state — backing field + animated crossfade.
+  private _lodLevel: LodLevel = 'L2';
+  private _lodTransition: LodTransition | null = null;
+  /** Offscreen canvas used to composite each LOD layer at partial alpha. */
+  private _transOffscreen: HTMLCanvasElement | null = null;
+
+  get lodLevel(): LodLevel { return this._lodLevel; }
+  set lodLevel(next: LodLevel) {
+    if (next !== this._lodLevel) {
+      this._lodTransition = {
+        fromLevel: this._lodLevel,
+        toLevel: next,
+        startTime: performance.now(),
+      };
+      this._lodLevel = next;
+    }
+  }
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -124,30 +159,67 @@ export class CityRenderer {
     }
 
     // 3c. Lightning paths from error origin to affected dependencies
-    drawLightningPaths(ctx, this.camera, this.city.buildings, this.city.roads, performance.now());
-
-    // 4. Buildings (back-to-front by gx+gy for occlusion)
-    //    At L3 zoom, render one district-building per district instead of per-file buildings.
     const now = performance.now();
-    if (this.lodLevel === 'L3') {
+    drawLightningPaths(ctx, this.camera, this.city.buildings, this.city.roads, now);
+
+    // --- Compute LOD transition progress ---
+    // transitioning = true during the 300 ms crossfade window.
+    // fromAlpha fades 1→0, toAlpha fades 0→1.
+    let transitioning = false;
+    let fromLevel: LodLevel = this._lodLevel;
+    let toLevel: LodLevel = this._lodLevel;
+    let fromAlpha = 0;
+    let toAlpha = 1;
+
+    if (this._lodTransition) {
+      const raw = Math.min(1, (now - this._lodTransition.startTime) / LOD_TRANSITION_MS);
+      if (raw >= 1) {
+        this._lodTransition = null;
+      } else {
+        transitioning = true;
+        fromLevel = this._lodTransition.fromLevel;
+        toLevel   = this._lodTransition.toLevel;
+        const t   = easeInOutCubic(raw);
+        fromAlpha = 1 - t;
+        toAlpha   = t;
+      }
+    }
+
+    // 4. Buildings — crossfade during transition, normal single-pass otherwise.
+    //    L2 occluder X-ray is computed once and reused for both passes when
+    //    fromLevel or toLevel is L2.
+    const occluderIds = this.computeOccluderIds();
+
+    if (transitioning) {
+      this.compositeOffscreen(fromAlpha, (off) => this.drawBuildingLayer(off, fromLevel, occluderIds, now));
+      this.compositeOffscreen(toAlpha,   (off) => this.drawBuildingLayer(off, toLevel, occluderIds, now));
+    } else if (this._lodLevel === 'L3') {
       drawDistrictBuildings(ctx, this.camera, this.districtBuildings, this.showLabels, now);
     } else {
-      // Compute occluders for cursor/selected building so they are X-rayed (faded).
-      const occluderIds = this.computeOccluderIds();
       drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, now, occluderIds);
     }
 
     // 5. Agents — UFOs hover above or fly between buildings (all LOD levels).
-    //    At L3 agents reposition onto district-building surfaces.
+    //    During LOD transition, agents crossfade between their L2 and L3 positions.
     if (this.city.agents.length > 0) {
-      drawAgents(
-        ctx, this.camera, this.city.agents, this.city.buildings,
-        now, this.animManager, this.lodLevel, this.districtBuildings,
-      );
+      if (transitioning) {
+        this.compositeOffscreen(fromAlpha, (off) => {
+          drawAgents(off, this.camera, this.city!.agents, this.city!.buildings, now, this.animManager, fromLevel, this.districtBuildings);
+        });
+        this.compositeOffscreen(toAlpha, (off) => {
+          drawAgents(off, this.camera, this.city!.agents, this.city!.buildings, now, this.animManager, toLevel, this.districtBuildings);
+        });
+      } else {
+        drawAgents(
+          ctx, this.camera, this.city.agents, this.city.buildings,
+          now, this.animManager, this._lodLevel, this.districtBuildings,
+        );
+      }
     }
 
-    // 6. Hover highlight — only meaningful at file-level (non-L3)
-    if (this.lodLevel !== 'L3' && this.hoveredBuildingId && this.hoveredBuildingId !== this.cursorBuildingId) {
+    // 6. Hover highlight — suppressed during transition to avoid visual confusion.
+    if (!transitioning && this._lodLevel !== 'L3'
+        && this.hoveredBuildingId && this.hoveredBuildingId !== this.cursorBuildingId) {
       const hoveredBuilding = this.city.buildings.find(
         (b) => b.id === this.hoveredBuildingId,
       );
@@ -156,21 +228,75 @@ export class CityRenderer {
       }
     }
 
-    // 7. Cursor highlight — file-level at L1/L2, district-level at L3
-    if (this.lodLevel === 'L3') {
-      const target = this.cursorDistrictId
-        ? this.districtBuildings.find((d) => d.id === this.cursorDistrictId)
-        : undefined;
-      if (target) drawCursorHighlight(ctx, this.camera, target);
-    } else {
-      const target = this.cursorBuildingId
-        ? this.city.buildings.find((b) => b.id === this.cursorBuildingId)
-        : undefined;
-      if (target) drawCursorHighlight(ctx, this.camera, target);
+    // 7. Cursor highlight — suppressed during transition; snaps to new LOD when done.
+    if (!transitioning) {
+      if (this._lodLevel === 'L3') {
+        const target = this.cursorDistrictId
+          ? this.districtBuildings.find((d) => d.id === this.cursorDistrictId)
+          : undefined;
+        if (target) drawCursorHighlight(ctx, this.camera, target);
+      } else {
+        const target = this.cursorBuildingId
+          ? this.city.buildings.find((b) => b.id === this.cursorBuildingId)
+          : undefined;
+        if (target) drawCursorHighlight(ctx, this.camera, target);
+      }
     }
 
     // 8. Vignette
     this.drawVignette(w, h);
+  }
+
+  /**
+   * Draw into the offscreen buffer via `drawFn`, then composite the result
+   * onto the main canvas at the given `alpha`. This avoids globalAlpha
+   * conflicts with per-draw-call alpha operations inside renderers.
+   */
+  private compositeOffscreen(alpha: number, drawFn: (ctx: CanvasRenderingContext2D) => void): void {
+    const dpr = window.devicePixelRatio || 1;
+    const offCtx = this.getTransitionCtx();
+
+    offCtx.setTransform(1, 0, 0, 1, 0, 0);
+    offCtx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    drawFn(offCtx);
+
+    this.ctx.save();
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.globalAlpha = alpha;
+    this.ctx.drawImage(this._transOffscreen!, 0, 0);
+    this.ctx.restore();
+  }
+
+  /** Draw the building/district layer for the given LOD level onto the provided context. */
+  private drawBuildingLayer(
+    ctx: CanvasRenderingContext2D,
+    level: LodLevel,
+    occluderIds: ReadonlySet<string>,
+    now: number,
+  ): void {
+    if (!this.city) return;
+    if (level === 'L3') {
+      drawDistrictBuildings(ctx, this.camera, this.districtBuildings, this.showLabels, now);
+    } else {
+      drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, now, occluderIds);
+    }
+  }
+
+  /** Return (and size-match) the shared offscreen canvas context. */
+  private getTransitionCtx(): CanvasRenderingContext2D {
+    const { width, height } = this.canvas;
+    if (!this._transOffscreen) {
+      this._transOffscreen = document.createElement('canvas');
+    }
+    if (this._transOffscreen.width !== width || this._transOffscreen.height !== height) {
+      this._transOffscreen.width  = width;
+      this._transOffscreen.height = height;
+    }
+    const off = this._transOffscreen.getContext('2d');
+    if (!off) throw new Error('LOD transition offscreen canvas unavailable');
+    return off;
   }
 
   /**
