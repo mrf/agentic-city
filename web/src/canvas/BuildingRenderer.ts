@@ -20,6 +20,12 @@ import { FONT_FAMILY, FONT_SIZE } from '../theme/typography';
  */
 const OCCLUDER_ALPHA = 0.22;
 
+/**
+ * Opacity of the ghost drawn over an occluding building for the always-on depth fade.
+ * The back building's geometry shows through at this alpha in the region it is hidden.
+ */
+const OCCLUSION_FADE_ALPHA = 0.7;
+
 /** Module-level offscreen canvas reused across frames to composite faded buildings. */
 let _offscreenEl: HTMLCanvasElement | null = null;
 
@@ -630,6 +636,128 @@ function drawLabel(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(displayLabel, plateX + plateW / 2, plateY + plateH / 2);
+}
+
+// ---------------------------------------------------------------------------
+// Occlusion fade overlay (always-on depth readability pass)
+// ---------------------------------------------------------------------------
+
+/**
+ * Draw a building's geometry at the given alpha via an offscreen canvas composite.
+ *
+ * Used for the always-on occlusion ghost: the back building is redrawn at
+ * OCCLUSION_FADE_ALPHA clipped to the occluder's silhouette region. Labels are
+ * intentionally excluded — the issue spec states labels are unaffected by occlusion.
+ *
+ * The caller must have already called ctx.clip() to restrict drawing to the
+ * desired region before invoking this function.
+ */
+function drawBuildingGhost(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  b: Building,
+  time: number,
+  alpha: number,
+): void {
+  const { width, height } = ctx.canvas;
+  const offCtx = getOffscreenCtx(width, height);
+
+  offCtx.setTransform(1, 0, 0, 1, 0, 0);
+  offCtx.clearRect(0, 0, width, height);
+  const t = ctx.getTransform();
+  offCtx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+
+  // Draw geometry without labels — labels are unaffected by occlusion fade.
+  drawBuilding(offCtx, camera, b, false, time);
+
+  // Composite at reduced opacity. The clip set by the caller limits the draw area.
+  // Reset to identity transform so the offscreen image (already at physical-pixel
+  // resolution) copies 1:1 without being scaled again by the DPI transform.
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(_offscreenEl!, 0, 0);
+  ctx.restore();
+}
+
+/**
+ * Second rendering pass for the always-on occlusion depth-fade effect.
+ *
+ * For each building that is partially hidden behind a foreground building
+ * (higher painter-sort-key with overlapping footprint), draws that building's
+ * geometry at OCCLUSION_FADE_ALPHA clipped to the occluder's visible silhouette.
+ * This produces a ghost image of the back building in the region it is
+ * geometrically occluded, giving depth-readability cues without altering the
+ * front buildings.
+ *
+ * Must be called AFTER the main drawBuildings() pass so the ghost composites
+ * on top of the already-drawn occluding buildings.
+ *
+ * Skips:
+ *   - Selected/cursor buildings — the X-ray effect (occluderIds) handles those.
+ *   - Buildings already in occluderIds — they are drawn at 0.22 by drawBuildings;
+ *     stacking a 0.7 ghost would compound the fading incorrectly.
+ *   - Buildings with no overlapping foreground neighbour (no-op).
+ */
+export function drawOcclusionFadeOverlay(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  buildings: Building[],
+  selectedBuildingId: string | null,
+  cursorBuildingId: string | null,
+  occluderIds: ReadonlySet<string>,
+  now: number,
+): void {
+  const sorted = [...buildings].sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy));
+
+  for (let i = 0; i < sorted.length; i++) {
+    const back = sorted[i];
+
+    // Buildings already handled by the X-ray focus effect — skip.
+    if (
+      back.id === selectedBuildingId ||
+      back.id === cursorBuildingId ||
+      occluderIds.has(back.id)
+    ) continue;
+
+    // Find front buildings (strictly higher sort key) whose footprints overlap.
+    const frontOccluders: Building[] = [];
+    for (let j = i + 1; j < sorted.length; j++) {
+      const front = sorted[j];
+      const overlapX = front.gx < back.gx + back.gw && front.gx + front.gw > back.gx;
+      const overlapY = front.gy < back.gy + back.gh && front.gy + front.gh > back.gy;
+      if (overlapX && overlapY) {
+        frontOccluders.push(front);
+      }
+    }
+
+    if (frontOccluders.length === 0) continue;
+
+    // Clip to the union of the occluders' visible silhouettes.
+    // Silhouette polygon: A → B → B2 → C2 → D2 → D (the full visible outline of
+    // each occluder, excluding the back faces that are never drawn).
+    ctx.save();
+    ctx.beginPath();
+    for (const occ of frontOccluders) {
+      const A  = camera.project(occ.gx, occ.gy);
+      const B  = camera.project(occ.gx + occ.gw, occ.gy);
+      const B2 = camera.project(occ.gx + occ.gw, occ.gy, occ.gz);
+      const C2 = camera.project(occ.gx + occ.gw, occ.gy + occ.gh, occ.gz);
+      const D2 = camera.project(occ.gx, occ.gy + occ.gh, occ.gz);
+      const D  = camera.project(occ.gx, occ.gy + occ.gh);
+      ctx.moveTo(A[0], A[1]);
+      ctx.lineTo(B[0], B[1]);
+      ctx.lineTo(B2[0], B2[1]);
+      ctx.lineTo(C2[0], C2[1]);
+      ctx.lineTo(D2[0], D2[1]);
+      ctx.lineTo(D[0], D[1]);
+      ctx.closePath();
+    }
+    ctx.clip();
+
+    drawBuildingGhost(ctx, camera, back, now, OCCLUSION_FADE_ALPHA);
+    ctx.restore();
+  }
 }
 
 // ---------------------------------------------------------------------------

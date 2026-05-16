@@ -16,6 +16,7 @@ import {
   drawDistrictBuildings,
   drawCursorHighlight,
   drawHoverHighlight,
+  drawOcclusionFadeOverlay,
 } from './BuildingRenderer';
 import { findOccluders } from './OcclusionDetector';
 import { drawRoads } from './RoadRenderer';
@@ -197,6 +198,10 @@ export class CityRenderer {
       drawDistrictBuildings(ctx, this.camera, this.districtBuildings, this.showLabels, now);
     } else {
       drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, now, occluderIds);
+      drawOcclusionFadeOverlay(
+        ctx, this.camera, this.city.buildings,
+        this.selectedBuildingId, this.cursorBuildingId, occluderIds, now,
+      );
     }
 
     // 5. Agents — UFOs hover above or fly between buildings (all LOD levels).
@@ -281,6 +286,10 @@ export class CityRenderer {
       drawDistrictBuildings(ctx, this.camera, this.districtBuildings, this.showLabels, now);
     } else {
       drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, now, occluderIds);
+      drawOcclusionFadeOverlay(
+        ctx, this.camera, this.city.buildings,
+        this.selectedBuildingId, this.cursorBuildingId, occluderIds, now,
+      );
     }
   }
 
