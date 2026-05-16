@@ -5,3 +5,11 @@
 .beads-credential-key
 
 .claude
+
+# Go binaries
+/agentic-city
+*.exe
+*.out
+
+# Vite build output
+/web/dist
