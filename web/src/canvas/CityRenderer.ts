@@ -35,6 +35,7 @@ export class CityRenderer {
   showRoads = false;
   lodLevel: LodLevel = 'L2';
   cursorBuildingId: string | null = null;
+  cursorDistrictId: string | null = null;
   selectedBuildingId: string | null = null;
   hoveredBuildingId: string | null = null;
 
@@ -155,14 +156,17 @@ export class CityRenderer {
       }
     }
 
-    // 7. Cursor highlight — only meaningful at file-level (non-L3)
-    if (this.lodLevel !== 'L3' && this.cursorBuildingId) {
-      const cursorBuilding = this.city.buildings.find(
-        (b) => b.id === this.cursorBuildingId,
-      );
-      if (cursorBuilding) {
-        drawCursorHighlight(ctx, this.camera, cursorBuilding);
-      }
+    // 7. Cursor highlight — file-level at L1/L2, district-level at L3
+    if (this.lodLevel === 'L3') {
+      const target = this.cursorDistrictId
+        ? this.districtBuildings.find((d) => d.id === this.cursorDistrictId)
+        : undefined;
+      if (target) drawCursorHighlight(ctx, this.camera, target);
+    } else {
+      const target = this.cursorBuildingId
+        ? this.city.buildings.find((b) => b.id === this.cursorBuildingId)
+        : undefined;
+      if (target) drawCursorHighlight(ctx, this.camera, target);
     }
 
     // 8. Vignette

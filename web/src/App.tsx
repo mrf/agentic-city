@@ -23,6 +23,7 @@ export function App(): JSX.Element {
   const showRoads = useUiStore((s) => s.showRoads);
   const lodLevel = useUiStore((s) => s.lodLevel);
   const cursorBuildingId = useUiStore((s) => s.cursorBuildingId);
+  const cursorDistrictId = useUiStore((s) => s.cursorDistrictId);
   const selectedBuildingId = useUiStore((s) => s.selectedBuildingId);
   const setCursor = useUiStore((s) => s.setCursor);
   const selectBuilding = useUiStore((s) => s.selectBuilding);
@@ -208,6 +209,13 @@ export function App(): JSX.Element {
       rendererRef.current.cursorBuildingId = cursorBuildingId;
     }
   }, [cursorBuildingId]);
+
+  // Sync cursor district into renderer for L3 highlight drawing
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.cursorDistrictId = cursorDistrictId;
+    }
+  }, [cursorDistrictId]);
 
   // rAF render loop
   useAnimationFrame((dt) => {

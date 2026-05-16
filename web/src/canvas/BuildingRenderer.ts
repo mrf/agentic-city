@@ -470,15 +470,17 @@ export function drawHoverHighlight(
   ctx.restore();
 }
 
+/** Minimal shape needed for cursor highlight — shared by Building and DistrictBuilding. */
+interface IsoBox { gx: number; gy: number; gw: number; gh: number; gz: number }
+
 /** Draw an amber dashed ring around the cursor building's visible silhouette. */
 export function drawCursorHighlight(
   ctx: CanvasRenderingContext2D,
   camera: IsometricCamera,
-  b: Building,
+  b: IsoBox,
 ): void {
   const pad = 0.5;
 
-  // Expanded silhouette: A→B (base) → B2→C2→D2 (roof) → D (base) → A
   const A  = camera.project(b.gx - pad, b.gy - pad);
   const B  = camera.project(b.gx + b.gw + pad, b.gy - pad);
   const B2 = camera.project(b.gx + b.gw + pad, b.gy - pad, b.gz);
