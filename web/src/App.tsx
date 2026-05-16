@@ -17,7 +17,7 @@ const DRAG_THRESHOLD = 4;
 export function App(): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<CityRenderer | null>(null);
-  const dragRef = useRef<{ active: boolean; hasDragged: boolean; totalDist: number } | null>(null);
+  const dragRef = useRef<{ active: boolean; hasDragged: boolean; startX: number; startY: number } | null>(null);
   const city = useCityStore((s) => s.city);
   const showLabels = useUiStore((s) => s.showLabels);
   const showRoads = useUiStore((s) => s.showRoads);
@@ -134,15 +134,15 @@ export function App(): JSX.Element {
     // Mouse drag-to-pan
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      dragRef.current = { active: true, hasDragged: false, totalDist: 0 };
+      dragRef.current = { active: true, hasDragged: false, startX: e.clientX, startY: e.clientY };
       canvas.style.cursor = 'grab';
     };
 
     const onMouseMove = (e: MouseEvent) => {
       const drag = dragRef.current;
       if (!drag?.active) return;
-      drag.totalDist += Math.hypot(e.movementX, e.movementY);
-      if (!drag.hasDragged && drag.totalDist < DRAG_THRESHOLD) return;
+      const netDist = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+      if (!drag.hasDragged && netDist < DRAG_THRESHOLD) return;
       drag.hasDragged = true;
       canvas.style.cursor = 'grabbing';
       renderer.camera.pan(e.movementX, e.movementY);
