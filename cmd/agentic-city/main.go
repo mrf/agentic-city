@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"math"
 	"math/rand"
 	"net/http"
@@ -45,8 +45,7 @@ func main() {
 	if *demo {
 		s := generateDemoState()
 		cityState = hub.NewState(s)
-		log.Printf("demo mode: %d districts, %d buildings, %d agents",
-			len(s.Districts), len(s.Buildings), len(s.Agents))
+		slog.Info("demo mode", "districts", len(s.Districts), "buildings", len(s.Buildings), "agents", len(s.Agents))
 	} else {
 		buildCfg = city.BuildConfig{
 			DepsCfg: deps.Config{ModuleName: readModuleName(*repoPath)},
@@ -54,11 +53,10 @@ func main() {
 
 		initial, err := city.BuildState(*repoPath, buildCfg)
 		if err != nil {
-			log.Printf("live mode: initial scan failed (%v) — serving empty state", err)
+			slog.Warn("live mode: initial scan failed — serving empty state", "err", err)
 			initial = model.CityState{Timestamp: time.Now().UnixMilli()}
 		} else {
-			log.Printf("live mode: scanned %d buildings in %d districts",
-				len(initial.Buildings), len(initial.Districts))
+			slog.Info("live mode: scanned", "buildings", len(initial.Buildings), "districts", len(initial.Districts))
 		}
 
 		cityState = hub.NewState(initial)
@@ -73,7 +71,7 @@ func main() {
 
 		if mw := buildMetricsWatcher(*repoPath, *coveragePath, *testResultsPath, readModuleName(*repoPath)); mw != nil {
 			if err := mw.Start(); err != nil {
-				log.Printf("metrics watcher: start failed: %v", err)
+				slog.Error("metrics watcher: start failed", "err", err)
 				mw.Stop()
 			} else {
 				go runMetricsWatcher(ctx, mw, cityState, h)
@@ -85,7 +83,7 @@ func main() {
 
 	distFS, err := fs.Sub(agentcityweb.Dist, "dist")
 	if err != nil {
-		log.Printf("static embed unavailable: %v", err)
+		slog.Error("static embed unavailable", "err", err)
 	} else {
 		mux.Handle("/", http.FileServer(http.FS(distFS)))
 	}
@@ -96,20 +94,21 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("agent-city listening on %s", *addr)
+		slog.Info("agent-city listening", "addr", *addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server error: %v", err)
+			slog.Error("server error", "err", err)
+			os.Exit(1)
 		}
 	}()
 
 	<-ctx.Done()
-	log.Printf("shutting down...")
+	slog.Info("shutting down")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown error: %v", err)
+		slog.Error("shutdown error", "err", err)
 	}
 }
 
@@ -399,11 +398,11 @@ func clamp(v, lo, hi float64) float64 {
 func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, state *hub.State, h *hub.Hub, tracker *agents.Tracker) {
 	w, err := repo.NewWatcher(repoPath, cfg.ScanCfg)
 	if err != nil {
-		log.Printf("watcher: init failed: %v", err)
+		slog.Error("watcher: init failed", "err", err)
 		return
 	}
 	if err := w.Start(); err != nil {
-		log.Printf("watcher: start failed: %v", err)
+		slog.Error("watcher: start failed", "err", err)
 		return
 	}
 	defer w.Stop()
@@ -439,14 +438,14 @@ func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, stat
 				// recompute layout and dependency graph.
 				next, err := city.BuildState(repoPath, cfg)
 				if err != nil {
-					log.Printf("watcher: full rescan failed: %v", err)
+					slog.Error("watcher: full rescan failed", "err", err)
 					continue
 				}
 				curr := state.GetState()
 				next.Agents = curr.Agents
 				next.Activities = curr.Activities
 				state.SetState(next)
-				log.Printf("watcher: full rescan — %d buildings", len(next.Buildings))
+				slog.Info("watcher: full rescan", "buildings", len(next.Buildings))
 			} else {
 				// Content-only changes — merge incrementally.
 				curr := state.GetState()
@@ -478,7 +477,7 @@ func buildMetricsWatcher(repoPath, coveragePath, testResultsPath, modulePath str
 		return nil
 	}
 
-	log.Printf("metrics watcher: coverage=%v test-results=%v", coverageFiles, testResultFiles)
+	slog.Info("metrics watcher", "coverage", coverageFiles, "test-results", testResultFiles)
 
 	mw, err := repo.NewMetricsWatcher(repo.MetricsConfig{
 		CoverageFiles:   coverageFiles,
@@ -487,7 +486,7 @@ func buildMetricsWatcher(repoPath, coveragePath, testResultsPath, modulePath str
 		ModulePath:      modulePath,
 	})
 	if err != nil {
-		log.Printf("metrics watcher: init failed: %v", err)
+		slog.Error("metrics watcher: init failed", "err", err)
 		return nil
 	}
 	return mw

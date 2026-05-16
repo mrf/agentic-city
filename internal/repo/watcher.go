@@ -2,7 +2,7 @@ package repo
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -243,11 +243,11 @@ func scanFile(root, relPath string, cfg ScanConfig) (model.Building, error) {
 
 // logFsnotifyError logs an fsnotify error at warn level, adding an actionable
 // hint when the inotify watch limit is exhausted (ENOSPC).
-func logFsnotifyError(prefix string, err error) {
+func logFsnotifyError(component string, err error) {
 	if errors.Is(err, syscall.ENOSPC) {
-		log.Printf("%s: fsnotify error (inotify watch limit reached — run: sysctl -w fs.inotify.max_user_watches=524288): %v", prefix, err)
+		slog.Warn(component+": inotify watch limit reached — run: sysctl -w fs.inotify.max_user_watches=524288", "err", err)
 	} else {
-		log.Printf("%s: fsnotify error: %v", prefix, err)
+		slog.Warn(component+": fsnotify error", "err", err)
 	}
 }
 

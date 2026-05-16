@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -86,7 +86,7 @@ func (h *Hub) Notify() {
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("hub: ws upgrade: %v", err)
+		slog.Error("hub: ws upgrade", "err", err)
 		return
 	}
 	c := &client{
@@ -140,7 +140,7 @@ func (h *Hub) sendFull(c *client) {
 	state := h.state.GetState()
 	msg, err := marshalFull(state)
 	if err != nil {
-		log.Printf("hub: marshal full: %v", err)
+		slog.Error("hub: marshal full", "err", err)
 		return
 	}
 	if len(h.prevJSON) == 0 {
@@ -180,7 +180,7 @@ func (h *Hub) maybeBroadcastPatch() {
 
 	msg, err := marshalPatch(patches)
 	if err != nil {
-		log.Printf("hub: marshal patch: %v", err)
+		slog.Error("hub: marshal patch", "err", err)
 		return
 	}
 	for c := range h.clients {
