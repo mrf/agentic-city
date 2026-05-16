@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useUiStore, DISPATCH_ROLES } from '../store/uiStore';
 import type { DispatchRole } from '../store/uiStore';
 import { sol, FONT } from '../hud/palette';
+import { useFocusTrap, useFocusRestore } from '../hooks/useFocusTrap';
 
 const S: Record<string, CSSProperties> = {
   backdrop: {
@@ -84,6 +85,10 @@ export function CommandPalette(): JSX.Element | null {
   const [filter, setFilter] = useState('');
   const [focusIndex, setFocusIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(containerRef, open);
+  useFocusRestore(open);
 
   // Reset state when opening
   useEffect(() => {
@@ -139,7 +144,7 @@ export function CommandPalette(): JSX.Element | null {
 
   return (
     <div style={S.backdrop} onClick={closeCommandPalette}>
-      <div style={S.palette} onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
+      <div ref={containerRef} style={S.palette} onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
         <div style={S.inputRow}>
           <span style={S.prompt}>▶</span>
           <input
