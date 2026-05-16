@@ -15,7 +15,7 @@ Architecture, design decisions, and the full keyboard binding table are in **[DE
 ## Quick Start
 
 ```bash
-git clone <repo> && cd agent-city
+git clone <repo> && cd agentic-city
 make dev          # start frontend dev server (http://localhost:5173)
 make run          # start Go backend (http://localhost:8080)
 ```
