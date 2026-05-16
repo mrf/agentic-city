@@ -712,6 +712,7 @@ export function drawOcclusionFadeOverlay(
 
   for (let i = 0; i < sorted.length; i++) {
     const back = sorted[i];
+    const backKey = back.gx + back.gy;
 
     // Buildings already handled by the X-ray focus effect — skip.
     if (
@@ -724,6 +725,7 @@ export function drawOcclusionFadeOverlay(
     const frontOccluders: Building[] = [];
     for (let j = i + 1; j < sorted.length; j++) {
       const front = sorted[j];
+      if (front.gx + front.gy <= backKey) continue;
       const overlapX = front.gx < back.gx + back.gw && front.gx + front.gw > back.gx;
       const overlapY = front.gy < back.gy + back.gh && front.gy + front.gh > back.gy;
       if (overlapX && overlapY) {
