@@ -10,7 +10,7 @@
  */
 
 import { IsometricCamera } from './IsometricCamera';
-import type { Building } from '../store/cityStore';
+import type { Building, DistrictBuilding } from '../store/cityStore';
 import { sol as SD } from '../theme/colors';
 import { FONT_FAMILY, FONT_SIZE } from '../theme/typography';
 
@@ -556,4 +556,294 @@ function drawLabel(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(displayLabel, plateX + plateW / 2, plateY + plateH / 2);
+}
+
+// ---------------------------------------------------------------------------
+// L3 district-building rendering
+// ---------------------------------------------------------------------------
+
+/** Status → border color for district buildings (cyan=ok, yellow=warn, red=err). */
+function districtStatusColor(status: string): string {
+  switch (status) {
+    case 'err': return SD.red;
+    case 'warn': return SD.yellow;
+    default:     return SD.cyan;
+  }
+}
+
+/**
+ * Draw all district-buildings sorted back-to-front.
+ * Called by CityRenderer when lodLevel === 'L3'.
+ */
+export function drawDistrictBuildings(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  districts: DistrictBuilding[],
+  showLabels: boolean,
+  time: number,
+): void {
+  const sorted = [...districts].sort(
+    (a, b) => (a.gx + a.gy) - (b.gx + b.gy),
+  );
+  for (const d of sorted) {
+    drawDistrictBuilding(ctx, camera, d, showLabels, time);
+  }
+}
+
+/**
+ * Draw a single district-building.
+ *
+ * Compared to a file-building it uses:
+ * - Status color for all outlines/tints (cyan=ok, yellow=warn, red=err)
+ * - Hatched vertical lines on visible side faces instead of window dots
+ * - Bold label with file-count badge
+ * - Blinking status indicator dot for warn/err
+ * - Red flash fill for err (reuses drawAlarmFlash)
+ */
+function drawDistrictBuilding(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  d: DistrictBuilding,
+  showLabels: boolean,
+  time: number,
+): void {
+  const borderColor = districtStatusColor(d.status);
+  const [tR, tG, tB] = hexToRgb(borderColor);
+
+  // Ground-plane corners
+  const A = camera.project(d.gx, d.gy);
+  const B = camera.project(d.gx + d.gw, d.gy);
+  const C = camera.project(d.gx + d.gw, d.gy + d.gh);
+  const D = camera.project(d.gx, d.gy + d.gh);
+
+  // Roof corners
+  const A2 = camera.project(d.gx, d.gy, d.gz);
+  const B2 = camera.project(d.gx + d.gw, d.gy, d.gz);
+  const C2 = camera.project(d.gx + d.gw, d.gy + d.gh, d.gz);
+  const D2 = camera.project(d.gx, d.gy + d.gh, d.gz);
+
+  // 1. Footprint tint
+  ctx.fillStyle = `rgba(${tR},${tG},${tB},0.05)`;
+  ctx.beginPath();
+  ctx.moveTo(A[0], A[1]);
+  ctx.lineTo(B[0], B[1]);
+  ctx.lineTo(C[0], C[1]);
+  ctx.lineTo(D[0], D[1]);
+  ctx.closePath();
+  ctx.fill();
+
+  // 2. Hidden back edges (dashed)
+  ctx.save();
+  ctx.setLineDash([2, 2]);
+  ctx.strokeStyle = SD.base01;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(B[0], B[1]);
+  ctx.lineTo(C[0], C[1]);
+  ctx.lineTo(C2[0], C2[1]);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(D[0], D[1]);
+  ctx.lineTo(C[0], C[1]);
+  ctx.stroke();
+  ctx.restore();
+
+  // 3. Base outline
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1.2;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(A[0], A[1]);
+  ctx.lineTo(B[0], B[1]);
+  ctx.lineTo(C[0], C[1]);
+  ctx.lineTo(D[0], D[1]);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // 4. Side faces — outline only
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(A[0], A[1]);
+  ctx.lineTo(B[0], B[1]);
+  ctx.lineTo(B2[0], B2[1]);
+  ctx.lineTo(A2[0], A2[1]);
+  ctx.closePath();
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(A[0], A[1]);
+  ctx.lineTo(D[0], D[1]);
+  ctx.lineTo(D2[0], D2[1]);
+  ctx.lineTo(A2[0], A2[1]);
+  ctx.closePath();
+  ctx.stroke();
+
+  // 5. Roof fill + outline
+  ctx.fillStyle = `rgba(${tR},${tG},${tB},0.15)`;
+  ctx.beginPath();
+  ctx.moveTo(A2[0], A2[1]);
+  ctx.lineTo(B2[0], B2[1]);
+  ctx.lineTo(C2[0], C2[1]);
+  ctx.lineTo(D2[0], D2[1]);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1.1;
+  ctx.stroke();
+
+  // 6. Red flash fill for err districts
+  if (d.status === 'err') {
+    drawAlarmFlash(ctx, A, B, D, A2, B2, C2, D2, time);
+  }
+
+  // 7. Hatched vertical lines on visible side faces (representing combined files)
+  drawDistrictHatch(ctx, camera, d, borderColor);
+
+  // 8. Status indicator dot — blinking for warn/err (sketch-C spec)
+  if (d.status !== 'ok') {
+    drawDistrictStatusDot(ctx, D2, borderColor, d.status, time);
+  }
+
+  // 9. Bold label with file count badge
+  if (showLabels) {
+    drawDistrictLabel(ctx, d, D2, borderColor);
+  }
+}
+
+/**
+ * Draw hatched vertical lines on the two visible side faces of a district-building.
+ * Vertical lines at regular u-intervals represent the combined file-buildings within.
+ * Sketch-C: "hatched windows pattern (representing combined buildings)".
+ */
+function drawDistrictHatch(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  d: DistrictBuilding,
+  color: string,
+): void {
+  const A  = camera.project(d.gx, d.gy);
+  const B  = camera.project(d.gx + d.gw, d.gy);
+  const D  = camera.project(d.gx, d.gy + d.gh);
+  const A2 = camera.project(d.gx, d.gy, d.gz);
+  const B2 = camera.project(d.gx + d.gw, d.gy, d.gz);
+  const D2 = camera.project(d.gx, d.gy + d.gh, d.gz);
+
+  // Number of hatch lines proportional to district width/depth
+  const stripesRight = Math.max(2, Math.floor(d.gw * 1.5));
+  const stripesLeft  = Math.max(2, Math.floor(d.gh * 1.5));
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 0.4;
+  ctx.globalAlpha = 0.3;
+
+  // Upper-right face: bl=A, br=B, tl=A2, tr=B2
+  for (let i = 1; i < stripesRight; i++) {
+    const u = i / stripesRight;
+    const bot = bilerp(A, B, A2, B2, u, 0);
+    const top = bilerp(A, B, A2, B2, u, 1);
+    ctx.beginPath();
+    ctx.moveTo(bot[0], bot[1]);
+    ctx.lineTo(top[0], top[1]);
+    ctx.stroke();
+  }
+
+  // Lower-left face: bl=A, br=D, tl=A2, tr=D2
+  for (let i = 1; i < stripesLeft; i++) {
+    const u = i / stripesLeft;
+    const bot = bilerp(A, D, A2, D2, u, 0);
+    const top = bilerp(A, D, A2, D2, u, 1);
+    ctx.beginPath();
+    ctx.moveTo(bot[0], bot[1]);
+    ctx.lineTo(top[0], top[1]);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Draw a blinking status indicator dot near the front-bottom corner of the district.
+ * Blinking at ~1.1 s for err, slow pulse for warn.
+ */
+function drawDistrictStatusDot(
+  ctx: CanvasRenderingContext2D,
+  anchor: [number, number],
+  color: string,
+  status: string,
+  time: number,
+): void {
+  // Offset the dot 8px right and 4px down from the D2 anchor
+  const cx = anchor[0] + 8;
+  const cy = anchor[1] + 4;
+  const r = 2.5;
+
+  let alpha: number;
+  if (status === 'err') {
+    const phase = (time % 1100) / 1100;
+    alpha = phase < 0.5 ? 1.0 : 0.25;
+  } else {
+    // warn: slow pulse
+    alpha = 0.55 + 0.45 * Math.sin((time / 900) * Math.PI * 2);
+  }
+
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Draw a bold district label with a file-count badge.
+ * Anchored to D2 (bottom-left roof vertex), same position as file-building labels.
+ * Sketch-C: "District label in bold with file count badge".
+ */
+function drawDistrictLabel(
+  ctx: CanvasRenderingContext2D,
+  d: DistrictBuilding,
+  bottomLeft: [number, number],
+  color: string,
+): void {
+  const namePart  = d.label;
+  const badgePart = ` ×${d.fileCount}`;
+
+  ctx.font = `bold ${FONT_SIZE.label}px ${FONT_FAMILY}`;
+  const nameW  = ctx.measureText(namePart).width;
+  ctx.font = `${FONT_SIZE.label}px ${FONT_FAMILY}`;
+  const badgeW = ctx.measureText(badgePart).width;
+
+  const padX  = 4;
+  const padY  = 3;
+  const plateW = nameW + badgeW + padX * 2;
+  const plateH = 12 + padY;
+  const plateX = bottomLeft[0] - plateW;
+  const plateY = bottomLeft[1] - plateH / 2;
+
+  // Backing plate
+  ctx.fillStyle = 'rgba(13,16,20,0.88)';
+  ctx.fillRect(plateX, plateY, plateW, plateH);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 0.6;
+  ctx.strokeRect(plateX, plateY, plateW, plateH);
+
+  const textY = plateY + plateH / 2;
+  const textX = plateX + padX;
+
+  // Bold district name
+  ctx.font = `bold ${FONT_SIZE.label}px ${FONT_FAMILY}`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(namePart, textX, textY);
+
+  // Dimmer file count badge
+  ctx.font = `${FONT_SIZE.label}px ${FONT_FAMILY}`;
+  ctx.globalAlpha = 0.65;
+  ctx.fillText(badgePart, textX + nameW, textY);
+  ctx.globalAlpha = 1;
 }

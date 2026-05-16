@@ -140,6 +140,7 @@ export interface DistrictBuilding {
   gy: number;
   gw: number;
   gh: number;
+  gz: number;       // height proportional to file count
 }
 
 const STATUS_RANK: Record<string, number> = {
@@ -232,6 +233,7 @@ export function selectDistrictBuildings(
       gy: d.gy,
       gw: d.gw,
       gh: d.gh,
+      gz: Math.max(3, Math.min(8, 2 + Math.ceil(fileCount / 3))),
     };
   });
 }

@@ -21,6 +21,7 @@ export function App(): JSX.Element {
   const city = useCityStore((s) => s.city);
   const showLabels = useUiStore((s) => s.showLabels);
   const showRoads = useUiStore((s) => s.showRoads);
+  const lodLevel = useUiStore((s) => s.lodLevel);
   const cursorBuildingId = useUiStore((s) => s.cursorBuildingId);
   const selectedBuildingId = useUiStore((s) => s.selectedBuildingId);
   const setCursor = useUiStore((s) => s.setCursor);
@@ -188,6 +189,12 @@ export function App(): JSX.Element {
       rendererRef.current.showRoads = showRoads;
     }
   }, [showRoads]);
+
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.lodLevel = lodLevel;
+    }
+  }, [lodLevel]);
 
   useEffect(() => {
     if (rendererRef.current) {
