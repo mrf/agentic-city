@@ -165,7 +165,22 @@ function handleMessage(raw: MessageEvent): void {
 
 function connect(): void {
   if (stopped) return;
-  if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+
+  if (ws !== null) {
+    const state = ws.readyState;
+    if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
+      // Already connecting or connected — guard against double-connect.
+      return;
+    }
+    // Socket is CLOSING or CLOSED but onclose hasn't fired yet.
+    // Detach stale handlers so the old onclose cannot null out the
+    // new socket we're about to create.
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onerror = null;
+    ws.onclose = null;
+    ws = null;
+  }
 
   ws = new WebSocket(wsUrl());
   notifyStatus('connecting');
