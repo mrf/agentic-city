@@ -75,6 +75,9 @@ export function drawAgents(
 ): void {
   if (agents.length === 0) return;
 
+  // Reset per-frame staging slot counter.
+  stagingSlotIndex = 0;
+
   const buildMap = new Map<string, Building>(buildings.map((b) => [b.id, b]));
 
   // City centre in screen space — used to push UFOs outward so they don't
@@ -88,8 +91,9 @@ export function drawAgents(
       drawFlyingAgent(ctx, camera, agent, buildMap, time, animManager);
     } else if (agent.targetId) {
       drawHoveringAgent(ctx, camera, agent, buildMap, cityCenter, time, animManager);
+    } else {
+      drawStagingAgent(ctx, camera, agent, cityCenter, time, animManager);
     }
-    // Agents with no position data are not drawn
   }
 
   ctx.restore();
@@ -156,6 +160,38 @@ function drawHoveringAgent(
   drawTractorBeam(ctx, sx, sy, roofPt, agent, time);
 
   // Draw UFO disc + dome
+  drawUFO(ctx, agent, sx, sy, camera.scale, time, animManager);
+}
+
+// ── Staging agent (no position data — parked above city centre) ─────────────
+
+/** Offset multiplier per staging slot so multiple unlocated agents don't overlap. */
+const STAGING_SLOT_SPACING = 40;
+
+/** Counter tracking how many staging agents have been drawn this frame. */
+let stagingSlotIndex = 0;
+
+/**
+ * Draws an agent with no targetId and no flight path — these are agents whose
+ * location is "unknown". They are rendered above the city centre, spread
+ * horizontally so they remain visible and don't stack.
+ */
+function drawStagingAgent(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  agent: Agent,
+  cityCenter: [number, number],
+  time: number,
+  animManager: AnimationManager,
+): void {
+  // Park the UFO above the city centre with a horizontal offset per slot
+  // to avoid overlapping.
+  const clampedScale = Math.max(0.6, Math.min(1.5, camera.scale));
+  const slot = stagingSlotIndex++;
+  const offsetX = (slot - 1) * STAGING_SLOT_SPACING * clampedScale;
+  const sx = cityCenter[0] + offsetX;
+  const sy = cityCenter[1] - 100 * clampedScale + animManager.getHoverBob(agent.id, time);
+
   drawUFO(ctx, agent, sx, sy, camera.scale, time, animManager);
 }
 

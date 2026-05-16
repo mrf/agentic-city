@@ -25,26 +25,32 @@ import (
 )
 
 // StartMonitor configures agentwatch sources (Claude, Codex, Gemini),
-// creates a monitor.Monitor, and starts a goroutine that bridges session
-// state changes into the Agents slice of cityState.
+// creates a monitor.Monitor and Tracker, and starts a goroutine that bridges
+// session state changes into the Agents slice of cityState.
+//
+// The returned Tracker can be used by the repo watcher to feed file events,
+// improving agent-to-building location accuracy. Returns nil if no sources
+// are available.
 //
 // Graceful degradation: if no agent tool directories are present on the local
-// machine, the function returns without starting a goroutine; the city renders
-// without agents until sessions are discovered on a subsequent restart.
+// machine, the function returns nil without starting a goroutine; the city
+// renders without agents until sessions are discovered on a subsequent restart.
 //
 // The goroutine runs until ctx is canceled.
-func StartMonitor(ctx context.Context, repoPath string, cityState *hub.State, h *hub.Hub) {
+func StartMonitor(ctx context.Context, repoPath string, cityState *hub.State, h *hub.Hub) *Tracker {
 	absRepo, absErr := filepath.Abs(repoPath)
 	if absErr != nil {
 		slog.Error("agents: cannot resolve repo path", "path", repoPath, "err", absErr)
-		return
+		return nil
 	}
 
 	sources := buildSources()
 	if len(sources) == 0 {
 		slog.Info("agents: no agentwatch sources found — city will render without agents")
-		return
+		return nil
 	}
+
+	tracker := New(absRepo)
 
 	// mon is declared before the closure so the closure captures a reference to
 	// the variable; by the time the closure is called (inside mon.Run), mon is
@@ -56,9 +62,9 @@ func StartMonitor(ctx context.Context, repoPath string, cityState *hub.State, h 
 			return nil
 		}
 		sessions := mon.Snapshot()
-		agents := sessionsToAgents(sessions, absRepo)
+		syncTracker(tracker, sessions, absRepo)
 		curr := cityState.GetState()
-		curr.Agents = agents
+		curr.Agents = tracker.Agents(curr.Buildings)
 		cityState.SetState(curr)
 		if h != nil {
 			h.Notify()
@@ -74,7 +80,7 @@ func StartMonitor(ctx context.Context, repoPath string, cityState *hub.State, h 
 	)
 	if err != nil {
 		slog.Error("agents: monitor create failed", "err", err)
-		return
+		return nil
 	}
 
 	go func() {
@@ -84,6 +90,7 @@ func StartMonitor(ctx context.Context, repoPath string, cityState *hub.State, h 
 	}()
 
 	slog.Info("agents: monitor started", "sources", mon.Sources())
+	return tracker
 }
 
 // buildSources discovers available agent tool directories and returns
@@ -221,5 +228,37 @@ func modelTier(m string) string {
 		return "haiku"
 	default:
 		return "unknown"
+	}
+}
+
+// syncTracker upserts all active sessions and removes stale ones from tracker.
+// Only sessions whose WorkingDir is under repoPath are tracked.
+func syncTracker(tracker *Tracker, sessions []session.SessionState, repoPath string) {
+	for i := range sessions {
+		s := sessions[i]
+		if s.Lifecycle == session.LifecycleTerminal {
+			tracker.RemoveSession(s.Source + ":" + s.ID)
+			continue
+		}
+		if !strings.HasPrefix(s.WorkingDir, repoPath) {
+			continue
+		}
+		tracker.UpdateSession(awToSessionState(s))
+	}
+}
+
+// awToSessionState converts an agentwatch session.SessionState to the
+// package-internal SessionState adapter type used by Tracker.
+func awToSessionState(s session.SessionState) SessionState {
+	return SessionState{
+		ID:                 s.Source + ":" + s.ID,
+		Source:             s.Source,
+		Activity:           string(s.Activity),
+		Lifecycle:          string(s.Lifecycle),
+		Model:              s.Model,
+		CurrentTool:        s.CurrentTool,
+		WorkingDir:         s.WorkingDir,
+		Branch:             s.Branch,
+		ContextUtilization: s.ContextUtilization,
 	}
 }

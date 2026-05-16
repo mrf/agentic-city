@@ -68,8 +68,8 @@ func main() {
 	go h.Run(ctx)
 
 	if !*demo {
-		go runWatcher(ctx, *repoPath, buildCfg, cityState, h)
-		agents.StartMonitor(ctx, *repoPath, cityState, h)
+		tracker := agents.StartMonitor(ctx, *repoPath, cityState, h)
+		go runWatcher(ctx, *repoPath, buildCfg, cityState, h, tracker)
 
 		if mw := buildMetricsWatcher(*repoPath, *coveragePath, *testResultsPath, readModuleName(*repoPath)); mw != nil {
 			if err := mw.Start(); err != nil {
@@ -393,7 +393,10 @@ func clamp(v, lo, hi float64) float64 {
 // Structural changes (creates/deletes/renames) trigger a full rescan to keep
 // the layout consistent. Content-only changes are merged incrementally.
 // Agents and Activities are always preserved across refreshes.
-func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, state *hub.State, h *hub.Hub) {
+//
+// When tracker is non-nil, each changed file is fed as a FileEvent so the
+// tracker can correlate file activity with agent working directories.
+func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, state *hub.State, h *hub.Hub, tracker *agents.Tracker) {
 	w, err := repo.NewWatcher(repoPath, cfg.ScanCfg)
 	if err != nil {
 		log.Printf("watcher: init failed: %v", err)
@@ -405,6 +408,8 @@ func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, stat
 	}
 	defer w.Stop()
 
+	absRepo, _ := filepath.Abs(repoPath)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -413,6 +418,20 @@ func runWatcher(ctx context.Context, repoPath string, cfg city.BuildConfig, stat
 		case update, ok := <-w.Updates:
 			if !ok {
 				return
+			}
+
+			// Feed file events to the tracker for agent location inference.
+			if tracker != nil {
+				now := time.Now()
+				for _, b := range update.Buildings {
+					if b.ID == "" {
+						continue
+					}
+					tracker.ObserveFileEvent(agents.FileEvent{
+						AbsPath: filepath.Join(absRepo, filepath.FromSlash(b.ID)),
+						At:      now,
+					})
+				}
 			}
 
 			if update.HasStructural {
