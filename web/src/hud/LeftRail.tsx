@@ -112,7 +112,7 @@ const S: Record<string, CSSProperties> = {
 };
 
 function AgentRow({ agent, index, focused }: { agent: Agent; index: number; focused: boolean }): JSX.Element {
-  const pct = Math.max(0, Math.min(1, agent.progress ?? 0));
+  const pct = Math.max(0, Math.min(100, agent.progress ?? 0));
   const tc = tierColor(agent.modelTier);
   const mc = modeColor(agent.mode);
   const rowStyle: CSSProperties = focused
@@ -144,7 +144,7 @@ function AgentRow({ agent, index, focused }: { agent: Agent; index: number; focu
         <div
           style={{
             height: '100%',
-            width: `${pct * 100}%`,
+            width: `${pct}%`,
             background: agent.color || sol.blue,
             borderRadius: 2,
             transition: 'width 0.3s ease',
