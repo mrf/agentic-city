@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/mferree/agent-city/internal/agents"
 	"github.com/mferree/agent-city/internal/model"
@@ -29,11 +30,48 @@ type Server struct {
 	spawner   *agents.Spawner
 	sink      ActivitySink
 	notifier  Notifier
+	devMode   bool
 }
 
 // New creates an API Server backed by the given StateProvider.
 func New(state StateProvider) *Server {
 	return &Server{state: state}
+}
+
+// WithDevMode controls CORS behaviour. In dev mode (default: false) the
+// Access-Control-Allow-Origin header is set to "*". In production mode only
+// requests from localhost origins are allowed.
+func (s *Server) WithDevMode(dev bool) *Server {
+	s.devMode = dev
+	return s
+}
+
+// setCORSHeaders sets the Access-Control-Allow-Origin response header.
+// In dev mode it uses the wildcard "*". Otherwise it reflects the request
+// Origin only when it is a localhost address.
+func (s *Server) setCORSHeaders(w http.ResponseWriter, r *http.Request) {
+	if s.devMode {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		return
+	}
+	origin := r.Header.Get("Origin")
+	if isLocalhostOrigin(origin) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Add("Vary", "Origin")
+	}
+}
+
+// isLocalhostOrigin reports whether origin refers to a localhost address.
+func isLocalhostOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // WithWSHandler replaces the default WebSocket stub with h (e.g. hub.Hub.ServeWS).

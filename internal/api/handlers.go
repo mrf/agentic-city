@@ -27,16 +27,16 @@ func checkOrigin(r *http.Request) bool {
 	return u.Host == r.Host
 }
 
-func writeJSON(w http.ResponseWriter, v any) {
+func (s *Server) writeJSON(w http.ResponseWriter, r *http.Request, v any) {
+	s.setCORSHeaders(w, r)
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		slog.Error("json encode failed", "err", err)
 	}
 }
 
 func (s *Server) handleGetState(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, s.state.GetState())
+	s.writeJSON(w, r, s.state.GetState())
 }
 
 func (s *Server) handleGetBuilding(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func (s *Server) handleGetBuilding(w http.ResponseWriter, r *http.Request) {
 
 	for _, b := range s.state.GetState().Buildings {
 		if b.ID == id {
-			writeJSON(w, b)
+			s.writeJSON(w, r, b)
 			return
 		}
 	}
@@ -98,13 +98,13 @@ func (s *Server) handleDispatch(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("dispatch failed", "slug", req.Slug, "err", err)
 		s.emitActivity("YOU", "Dispatch failed: "+err.Error(), "#dc322f", "error")
-		writeJSON(w, map[string]string{"error": err.Error()})
+		s.writeJSON(w, r, map[string]string{"error": err.Error()})
 		return
 	}
 
 	slog.Info("dispatch succeeded", "slug", result.Slug, "branch", result.Branch)
 	s.emitActivity("YOU", "Dispatched agent "+result.Slug+" ("+req.Role+")", "#6a8a4a", "info")
-	writeJSON(w, result)
+	s.writeJSON(w, r, result)
 }
 
 // emitActivity pushes an ActivityEvent into the hub state and triggers a broadcast.

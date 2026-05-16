@@ -81,7 +81,16 @@ func main() {
 		}
 	}
 
-	api.New(cityState).WithWSHandler(h.ServeWS).Register(mux)
+	// Dev mode: --demo flag or --repo not explicitly set (default ".").
+	repoExplicitlySet := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "repo" {
+			repoExplicitlySet = true
+		}
+	})
+	devMode := *demo || !repoExplicitlySet
+
+	api.New(cityState).WithDevMode(devMode).WithWSHandler(h.ServeWS).Register(mux)
 
 	distFS, err := fs.Sub(agentcityweb.Dist, "dist")
 	if err != nil {

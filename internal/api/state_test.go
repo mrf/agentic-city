@@ -38,6 +38,60 @@ func TestHandleGetState_Returns200WithBody(t *testing.T) {
 	}
 }
 
+func TestCORSDevMode(t *testing.T) {
+	srv := New(&fakeState{}).WithDevMode(true)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	req := httptest.NewRequest("GET", "/api/state", nil)
+	req.Header.Set("Origin", "http://example.com")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("dev mode: Access-Control-Allow-Origin = %q, want %q", got, "*")
+	}
+}
+
+func TestCORSProdMode_LocalhostAllowed(t *testing.T) {
+	origins := []string{
+		"http://localhost:5173",
+		"http://127.0.0.1:8080",
+		"http://localhost",
+	}
+	for _, origin := range origins {
+		t.Run(origin, func(t *testing.T) {
+			srv := New(&fakeState{}).WithDevMode(false)
+			mux := http.NewServeMux()
+			srv.Register(mux)
+
+			req := httptest.NewRequest("GET", "/api/state", nil)
+			req.Header.Set("Origin", origin)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			if got := w.Header().Get("Access-Control-Allow-Origin"); got != origin {
+				t.Errorf("prod mode: Access-Control-Allow-Origin = %q, want %q", got, origin)
+			}
+		})
+	}
+}
+
+func TestCORSProdMode_RemoteOriginBlocked(t *testing.T) {
+	srv := New(&fakeState{}).WithDevMode(false)
+	mux := http.NewServeMux()
+	srv.Register(mux)
+
+	req := httptest.NewRequest("GET", "/api/state", nil)
+	req.Header.Set("Origin", "http://evil.example.com")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("prod mode: remote origin should be blocked, got Access-Control-Allow-Origin = %q", got)
+	}
+}
+
 func TestHandleGetBuilding_NotFound(t *testing.T) {
 	srv := New(&fakeState{state: model.CityState{
 		Buildings: []model.Building{{ID: "main.go", Label: "main.go"}},
