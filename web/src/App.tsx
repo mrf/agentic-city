@@ -10,6 +10,7 @@ import { startWs, stopWs } from './store/wsMiddleware';
 import { HudOverlay } from './hud/HudOverlay';
 import { ScanlineOverlay } from './hud/ScanlineOverlay';
 import { useSessionPersist } from './hooks/useSessionPersist';
+import { sol } from './theme/colors';
 
 /** Minimum pixel movement before a mousedown is considered a drag (not a click). */
 const DRAG_THRESHOLD = 4;
@@ -32,6 +33,7 @@ export function App(): JSX.Element {
   const setFocusedAgentIndex = useUiStore((s) => s.setFocusedAgentIndex);
   const setInspectedAgentId = useUiStore((s) => s.setInspectedAgentId);
   const [canvasCursor, setCanvasCursor] = useState<string>('default');
+  const [canvasFocused, setCanvasFocused] = useState<boolean>(false);
 
   // Mousemove: update pointer cursor and hover highlight
   const handleCanvasMouseMove = useCallback(
@@ -69,6 +71,10 @@ export function App(): JSX.Element {
 
   // Persist viewport and UI state to localStorage, restore on reload
   useSessionPersist(rendererRef);
+
+  // Focus and blur handlers for keyboard navigation indicator
+  const handleCanvasFocus = () => setCanvasFocused(true);
+  const handleCanvasBlur = () => setCanvasFocused(false);
 
   // Click handler: agents first (they render on top), then buildings.
   const handleCanvasClick = useCallback(
@@ -226,6 +232,9 @@ export function App(): JSX.Element {
     <>
       <canvas
         ref={canvasRef}
+        tabIndex={0}
+        onFocus={handleCanvasFocus}
+        onBlur={handleCanvasBlur}
         onClick={handleCanvasClick}
         onMouseMove={handleCanvasMouseMove}
         style={{
@@ -236,6 +245,8 @@ export function App(): JSX.Element {
           width: '100vw',
           height: '100vh',
           cursor: canvasCursor,
+          outline: canvasFocused ? `2px solid ${sol.yellow}` : 'none',
+          outlineOffset: -2,
         }}
       />
       <ScanlineOverlay />
