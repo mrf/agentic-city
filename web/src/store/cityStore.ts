@@ -126,6 +126,54 @@ function sanitize(city: CityState): CityState {
   };
 }
 
+/**
+ * A district-level building for L3 LOD rendering.
+ * One entry per district; stats are aggregated across all file-buildings within it.
+ */
+export interface DistrictBuilding {
+  id: string;
+  label: string;
+  fileCount: number;
+  status: string;   // 'ok' | 'warn' | 'err'
+  gx: number;
+  gy: number;
+  gw: number;
+  gh: number;
+  gz: number;       // height proportional to file count
+}
+
+/** Worst-case status across a list of status strings. */
+function worstStatus(statuses: string[]): string {
+  if (statuses.some((s) => s === 'err' || s === 'CRIT')) return 'err';
+  if (statuses.some((s) => s === 'warn')) return 'warn';
+  return 'ok';
+}
+
+/** Derive one DistrictBuilding per district, aggregating file-building stats. */
+export function selectDistrictBuildings(city: CityState): DistrictBuilding[] {
+  const byDistrict = new Map<string, Building[]>();
+  for (const b of city.buildings) {
+    const list = byDistrict.get(b.districtId) ?? [];
+    list.push(b);
+    byDistrict.set(b.districtId, list);
+  }
+
+  return city.districts.map((d) => {
+    const files = byDistrict.get(d.id) ?? [];
+    return {
+      id: d.id,
+      label: d.label,
+      fileCount: files.length,
+      status: worstStatus(files.map((b) => b.status)),
+      gx: d.gx,
+      gy: d.gy,
+      gw: d.gw,
+      gh: d.gh,
+      gz: Math.max(3, Math.min(8, 2 + Math.ceil(files.length / 3))),
+    };
+  });
+}
+
 export const useCityStore = create<CityStore>((set) => ({
   city: emptyCityState,
   setCity: (city) => set({ city: sanitize(city) }),

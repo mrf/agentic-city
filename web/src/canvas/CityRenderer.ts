@@ -7,12 +7,19 @@
 
 import { IsometricCamera } from './IsometricCamera';
 import { drawDistricts } from './DistrictRenderer';
-import { drawBuildings, drawCursorHighlight, drawHoverHighlight } from './BuildingRenderer';
+import {
+  drawBuildings,
+  drawDistrictBuildings,
+  drawCursorHighlight,
+  drawHoverHighlight,
+} from './BuildingRenderer';
 import { drawRoads } from './RoadRenderer';
 import { drawAgents } from './AgentRenderer';
 import { drawLightningPaths } from './LightningRenderer';
 import { AnimationManager } from './AnimationManager';
-import type { CityState } from '../store/cityStore';
+import type { CityState, DistrictBuilding } from '../store/cityStore';
+import { selectDistrictBuildings } from '../store/cityStore';
+import type { LodLevel } from '../store/uiStore';
 import { sol as SD } from '../theme/colors';
 
 export class CityRenderer {
@@ -20,10 +27,12 @@ export class CityRenderer {
   private ctx: CanvasRenderingContext2D;
   camera: IsometricCamera;
   private city: CityState | null = null;
+  private districtBuildings: DistrictBuilding[] = [];
   private animManager = new AnimationManager();
   private hasFitted = false;
   showLabels = true;
   showRoads = false;
+  lodLevel: LodLevel = 'L2';
   cursorBuildingId: string | null = null;
   selectedBuildingId: string | null = null;
   hoveredBuildingId: string | null = null;
@@ -38,6 +47,7 @@ export class CityRenderer {
 
   setCity(city: CityState): void {
     this.city = city;
+    this.districtBuildings = selectDistrictBuildings(city);
     if (!this.hasFitted && (city.buildings.length > 0 || city.districts.length > 0)) {
       this.hasFitted = true;
       const dpr = window.devicePixelRatio || 1;
@@ -115,15 +125,21 @@ export class CityRenderer {
     drawLightningPaths(ctx, this.camera, this.city.buildings, this.city.roads, performance.now());
 
     // 4. Buildings (back-to-front by gx+gy for occlusion)
-    drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, performance.now());
-
-    // 5. Agents — UFOs hover above or fly between buildings
-    if (this.city.agents.length > 0) {
-      drawAgents(ctx, this.camera, this.city.agents, this.city.buildings, performance.now(), this.animManager);
+    //    At L3 zoom, render one district-building per district instead of per-file buildings.
+    const now = performance.now();
+    if (this.lodLevel === 'L3') {
+      drawDistrictBuildings(ctx, this.camera, this.districtBuildings, this.showLabels, now);
+    } else {
+      drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, now);
     }
 
-    // 6. Hover highlight (subtle glow on mouseover)
-    if (this.hoveredBuildingId && this.hoveredBuildingId !== this.cursorBuildingId) {
+    // 5. Agents — UFOs hover above or fly between buildings (all LOD levels)
+    if (this.city.agents.length > 0) {
+      drawAgents(ctx, this.camera, this.city.agents, this.city.buildings, now, this.animManager);
+    }
+
+    // 6. Hover highlight — only meaningful at file-level (non-L3)
+    if (this.lodLevel !== 'L3' && this.hoveredBuildingId && this.hoveredBuildingId !== this.cursorBuildingId) {
       const hoveredBuilding = this.city.buildings.find(
         (b) => b.id === this.hoveredBuildingId,
       );
@@ -132,8 +148,8 @@ export class CityRenderer {
       }
     }
 
-    // 7. Cursor highlight (drawn after all buildings so it's never occluded)
-    if (this.cursorBuildingId) {
+    // 7. Cursor highlight — only meaningful at file-level (non-L3)
+    if (this.lodLevel !== 'L3' && this.cursorBuildingId) {
       const cursorBuilding = this.city.buildings.find(
         (b) => b.id === this.cursorBuildingId,
       );
