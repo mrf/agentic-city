@@ -4,9 +4,9 @@
 > Buildings are files, districts are directories, UFO agents are AI coding sessions.
 > Phase 1: see the city. Phase 2: run the city.
 
-## Current State (2026-05-14)
+## Current State (2026-05-16)
 
-Phase 1 is mostly complete. The city renders and updates from live repo data; agentwatch integration is the remaining P1 milestone. Phase 2 is not started.
+Phase 1 is complete. The city renders and updates from live repo data; agentwatch integration is done and passing tests. Phase 2 orchestration UI components are partially built.
 
 ### Milestone status
 
@@ -14,9 +14,9 @@ Phase 1 is mostly complete. The city renders and updates from live repo data; ag
 |-----------|--------|
 | P1.1 — Go binary, demo mode, repo scan, treemap, canvas + keyboard nav | ✅ Complete |
 | P1.2 — File watcher, WebSocket hub, Zustand store, dependency roads | ✅ Complete |
-| P1.3 — Agentwatch integration, UFO rendering, agent roster | ❌ Not started |
+| P1.3 — Agentwatch integration, UFO rendering, agent roster | ✅ Complete |
 | P1.4 — Full HUD, minimap, shortcut overlay, scanlines, visual polish | ✅ Complete |
-| Phase 2 — Orchestration, dispatch wizard, agent spawning, alarm state | ❌ Not started |
+| Phase 2 — Orchestration, dispatch wizard, agent spawning, alarm state | 🔄 In progress |
 
 ### What actually exists
 
@@ -31,7 +31,7 @@ Phase 1 is mostly complete. The city renders and updates from live repo data; ag
 | `internal/layout/` | `engine.go`, `packer.go`, `treemap.go` | ✅ |
 | `internal/hub/` | `hub.go`, `state.go` | ✅ |
 | `internal/api/` | `server.go`, `handlers.go` | ✅ |
-| `internal/agents/` | *(nothing)* | ❌ Not started — agentwatch integration (P1.3) is next |
+| `internal/agents/` | `monitor.go`, `monitor_test.go`, `tracker.go`, `tracker_test.go`, `spawner.go`, `spawner_test.go` | ✅ Agentwatch integration complete (P1.3) |
 
 **Frontend — `web/src/`**
 
@@ -43,14 +43,14 @@ Phase 1 is mostly complete. The city renders and updates from live repo data; ag
 | `hooks/useCityKeyboard.ts`, `useAnimationFrame.ts`, `useSessionPersist.ts` | ✅ | |
 | `hooks/useCameraControls.ts` | ❌ | Lives inside `useCityKeyboard.ts`, not a separate file |
 | `hooks/useWebSocket.ts` | ❌ | Lives inside `store/wsMiddleware.ts`, not a separate file |
-| `theme/` | ❌ | Does not exist; palette lives at `hud/palette.ts` |
-| `orchestration/` | ❌ | Phase 2 — not started |
+| `theme/` | ✅ | `colors.ts`, `typography.ts` — SD palette and font sizes |
+| `orchestration/` | 🔄 | Phase 2 — 5 files exist: `AlarmOverlay.tsx`, `CommandPalette.tsx`, `DispatchWizard.tsx`, `RapidResponse.tsx`, `ScopeSelector.tsx` |
 
 ### Key gotchas for agents reading this doc
 
-- **Do not import `internal/agents/`** — the package does not exist yet.
-- **Do not import `web/src/theme/`** — the directory does not exist; use `web/src/hud/palette.ts`.
-- **Do not import `web/src/orchestration/`** — not built; Phase 2 only.
+- **`internal/agents/` exists** — `monitor.go`, `tracker.go`, `spawner.go` + tests. Agentwatch integration (P1.3) is complete.
+- **`web/src/theme/` exists** — `colors.ts` and `typography.ts`. The SD palette is also mirrored at `web/src/hud/palette.ts` for HUD-specific use.
+- **`web/src/orchestration/` exists** — 5 Phase 2 components are built: `AlarmOverlay.tsx`, `CommandPalette.tsx`, `DispatchWizard.tsx`, `RapidResponse.tsx`, `ScopeSelector.tsx`.
 - **`useCameraControls` and `useWebSocket` are not separate files** — see `useCityKeyboard.ts` and `store/wsMiddleware.ts`.
 - **`internal/city/` exists** (`builder.go`, city-state assembly) but is absent from the package layout section below.
 
@@ -596,11 +596,12 @@ web/src/
     ScanlineOverlay.tsx            — CRT scan line + vignette effect
     palette.ts                     — solarized dark color constants
 
-  orchestration/                   — (planned — Phase 2) dispatch & control
-    DispatchWizard.tsx             — (planned) 3-step flow: scope → role → dispatch (sketch-E)
-    CommandPalette.tsx             — (planned) Cmd+K quick-dispatch
-    AlarmOverlay.tsx               — (planned) error vignette + rapid-response (sketch-D)
-    ScopeSelector.tsx              — (planned) lasso selection, corner brackets, scope summary
+  orchestration/                   — Phase 2 dispatch & control (partially built)
+    DispatchWizard.tsx             — 3-step flow: scope → role → dispatch (sketch-E)
+    CommandPalette.tsx             — Cmd+K quick-dispatch
+    AlarmOverlay.tsx               — error vignette + rapid-response (sketch-D)
+    RapidResponse.tsx              — rapid-response panel inside alarm state
+    ScopeSelector.tsx              — lasso selection, corner brackets, scope summary
     RoleSelector.tsx               — (planned) role picker with descriptions
     DispatchPreview.tsx            — (planned) CLI preview + cost estimate + confirm button
     BudgetIndicator.tsx            — (planned) per-agent token spend, cumulative cost
@@ -612,9 +613,9 @@ web/src/
     useCameraControls.ts           — (planned) pan/zoom from keyboard + pointer
     useWebSocket.ts                — (planned) WS connection lifecycle
 
-  theme/                           — (planned)
-    colors.ts                      — (planned) SD palette from sd-helpers.jsx
-    typography.ts                  — (planned) font sizes matching prototypes
+  theme/
+    colors.ts                      — SD palette from sd-helpers.jsx
+    typography.ts                  — font sizes matching prototypes
 ```
 
 ### Keyboard Navigation (Phase 1 requirement)
