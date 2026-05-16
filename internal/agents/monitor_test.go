@@ -217,3 +217,79 @@ func TestSessionsToAgents_filtersWorkingDir(t *testing.T) {
 		t.Errorf("expected claude:a1 and claude:a2, got %v", ids)
 	}
 }
+
+func TestSyncTracker_updatesAndRemovesTerminal(t *testing.T) {
+	tracker := New("/home/user/myrepo")
+
+	sessions := []session.SessionState{
+		{ID: "a1", Source: "claude", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking, WorkingDir: "/home/user/myrepo"},
+		{ID: "a2", Source: "codex", Lifecycle: session.LifecycleActive, Activity: session.ActivityIdle, WorkingDir: "/home/user/myrepo/subdir"},
+		{ID: "a3", Source: "gemini", Lifecycle: session.LifecycleTerminal, Activity: session.ActivityTerminal, WorkingDir: "/home/user/myrepo"},
+		{ID: "a4", Source: "claude", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking, WorkingDir: "/other/repo"},
+	}
+
+	syncTracker(tracker, sessions, "/home/user/myrepo")
+
+	tracker.mu.Lock()
+	defer tracker.mu.Unlock()
+
+	// a1 and a2 should be tracked (active + under repoPath)
+	if _, ok := tracker.sessions["claude:a1"]; !ok {
+		t.Error("session claude:a1 should be tracked")
+	}
+	if _, ok := tracker.sessions["codex:a2"]; !ok {
+		t.Error("session codex:a2 should be tracked")
+	}
+	// a3 (terminal) should be removed
+	if _, ok := tracker.sessions["gemini:a3"]; ok {
+		t.Error("terminal session gemini:a3 should be removed")
+	}
+	// a4 is under a different repo, should not be tracked
+	if _, ok := tracker.sessions["claude:a4"]; ok {
+		t.Error("session claude:a4 (different repo) should not be tracked")
+	}
+}
+
+func TestAwToSessionState_fieldsMapCorrectly(t *testing.T) {
+	input := session.SessionState{
+		ID:                 "sess-123",
+		Source:             "claude",
+		Activity:           session.ActivityWorking,
+		Lifecycle:          session.LifecycleActive,
+		Model:              "claude-opus-4-6",
+		CurrentTool:        "Edit",
+		WorkingDir:         "/home/user/myrepo",
+		Branch:             "feature/foo",
+		ContextUtilization: 0.75,
+	}
+
+	got := awToSessionState(input)
+
+	if got.ID != "claude:sess-123" {
+		t.Errorf("ID = %q, want %q", got.ID, "claude:sess-123")
+	}
+	if got.Source != "claude" {
+		t.Errorf("Source = %q, want %q", got.Source, "claude")
+	}
+	if got.Activity != "working" {
+		t.Errorf("Activity = %q, want %q", got.Activity, "working")
+	}
+	if got.Lifecycle != "active" {
+		t.Errorf("Lifecycle = %q, want %q", got.Lifecycle, "active")
+	}
+	if got.Model != "claude-opus-4-6" {
+		t.Errorf("Model = %q, want %q", got.Model, "claude-opus-4-6")
+	}
+	if got.CurrentTool != "Edit" {
+		t.Errorf("CurrentTool = %q, want %q", got.CurrentTool, "Edit")
+	}
+	if got.WorkingDir != "/home/user/myrepo" {
+		t.Errorf("WorkingDir = %q, want %q", got.WorkingDir, "/home/user/myrepo")
+	}
+	if got.Branch != "feature/foo" {
+		t.Errorf("Branch = %q, want %q", got.Branch, "feature/foo")
+	}
+	if got.ContextUtilization != 0.75 {
+		t.Errorf("ContextUtilization = %v, want %v", got.ContextUtilization, 0.75)
+	}
+}
