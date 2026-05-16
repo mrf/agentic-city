@@ -2,7 +2,7 @@ package repo
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -166,7 +166,9 @@ func (w *Watcher) processBatch(batch map[string]fsnotify.Op) {
 		// inside it are caught.
 		if op&fsnotify.Create != 0 {
 			if info, statErr := os.Stat(absPath); statErr == nil && info.IsDir() {
-				_ = w.addDirsRecursively(absPath)
+				if err := w.addDirsRecursively(absPath); err != nil {
+					logFsnotifyError("watcher: new dir watch", err)
+				}
 				continue
 			}
 		}
@@ -245,9 +247,9 @@ func scanFile(root, relPath string, cfg ScanConfig) (model.Building, error) {
 // hint when the inotify watch limit is exhausted (ENOSPC).
 func logFsnotifyError(prefix string, err error) {
 	if errors.Is(err, syscall.ENOSPC) {
-		log.Printf("%s: fsnotify error (inotify watch limit reached — run: sysctl -w fs.inotify.max_user_watches=524288): %v", prefix, err)
+		slog.Warn("fsnotify error: inotify watch limit reached", "prefix", prefix, "err", err, "hint", "run: sysctl -w fs.inotify.max_user_watches=524288")
 	} else {
-		log.Printf("%s: fsnotify error: %v", prefix, err)
+		slog.Warn("fsnotify error", "prefix", prefix, "err", err)
 	}
 }
 

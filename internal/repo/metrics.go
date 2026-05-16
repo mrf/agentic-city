@@ -108,7 +108,9 @@ func (w *MetricsWatcher) Start() error {
 	for _, p := range append(w.cfg.CoverageFiles, w.cfg.TestResultFiles...) {
 		dir := filepath.Dir(p)
 		if !seen[dir] {
-			_ = w.fw.Add(dir) // best-effort; parse still works if dir is absent
+			if err := w.fw.Add(dir); err != nil {
+				logFsnotifyError("metrics watcher: watch dir", err)
+			}
 			seen[dir] = true
 		}
 	}
