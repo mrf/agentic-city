@@ -199,18 +199,18 @@ func agentTask(s session.SessionState) string {
 	return string(s.Activity)
 }
 
-// sourceColor maps an agentwatch source name to a display colour.
-// Colours match the solarized-dark palette used across the city UI.
+// sourceColor maps an agentwatch source name to a display colour name.
+// The frontend agentColor() in AgentRenderer.ts maps these names to hex values.
 func sourceColor(src string) string {
 	switch src {
 	case "claude":
-		return "#4a7a9c" // blue
+		return "blue"
 	case "codex":
-		return "#6a8a4a" // green
+		return "green"
 	case "gemini":
-		return "#b06a3a" // orange
+		return "orange"
 	default:
-		return "#657b83" // solarized base00 (grey)
+		return "grey"
 	}
 }
 
