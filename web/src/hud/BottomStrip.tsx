@@ -100,6 +100,7 @@ export function BottomStrip(): JSX.Element {
       <Hint keys={['N']} label="labels" color={activeColor(showLabels)} />
       <Hint keys={['M']} label="minimap" color={activeColor(showMinimap)} />
       <Hint keys={['C']} label="contrast" color={activeColor(highContrast)} />
+      <Hint keys={['⇧L']} label="lod" color={activeColor(lodLevel === 'L2')} />
       <span style={S.sep}>·</span>
       <Hint keys={['W', 'A', 'S', 'D']} label="pan" />
       <Hint keys={['+', '−']} label="zoom" />

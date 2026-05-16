@@ -13,7 +13,7 @@ export type LodLevel = 'L1' | 'L2' | 'L3' | 'L4';
  */
 export const LOD_THRESHOLDS = {
   L1: { leave: 3.5, enter: 4.5 },  // function-level: highest zoom
-  L2: { leave: 0.9, enter: 1.2 },  // file-level
+  L2: { leave: 1.5, enter: 2.0 },  // file-level: collapse to districts before buildings become microscopic
   L3: { leave: 0.3, enter: 0.4 },  // module-level
   // L4 (codebase/orbit) is below all L3 thresholds
 } as const;
@@ -122,6 +122,8 @@ interface UiStore {
   toggleMinimap: () => void;
   toggleShortcutOverlay: () => void;
   toggleHighContrast: () => void;
+  /** Toggle between L2 (file view) and L3 (district view). */
+  toggleLod: () => void;
   setFocusedAgentIndex: (index: number | null) => void;
   setInspectedAgentId: (id: string | null) => void;
 
@@ -146,7 +148,7 @@ export const useUiStore = create<UiStore>((set) => ({
   focusZone: 'city',
 
   zoom: 1.0,
-  lodLevel: 'L2',
+  lodLevel: 'L3',
   cameraX: 0,
   cameraY: 0,
 
@@ -181,6 +183,10 @@ export const useUiStore = create<UiStore>((set) => ({
   toggleMinimap: () => set((s) => ({ showMinimap: !s.showMinimap })),
   toggleShortcutOverlay: () => set((s) => ({ showShortcutOverlay: !s.showShortcutOverlay })),
   toggleHighContrast: () => set((s) => ({ highContrast: !s.highContrast })),
+  toggleLod: () => set((s) => {
+    const next: LodLevel = s.lodLevel === 'L3' ? 'L2' : 'L3';
+    return { lodLevel: next };
+  }),
   setFocusedAgentIndex: (index) => set({ focusedAgentIndex: index }),
   setInspectedAgentId: (id) => set({ inspectedAgentId: id }),
 

@@ -141,6 +141,7 @@ export function useCityKeyboard(
   const toggleMinimap = useUiStore((s) => s.toggleMinimap);
   const toggleShortcutOverlay = useUiStore((s) => s.toggleShortcutOverlay);
   const toggleHighContrast = useUiStore((s) => s.toggleHighContrast);
+  const toggleLod = useUiStore((s) => s.toggleLod);
   const showShortcutOverlay = useUiStore((s) => s.showShortcutOverlay);
   const focusedAgentIndex = useUiStore((s) => s.focusedAgentIndex);
   const setFocusedAgentIndex = useUiStore((s) => s.setFocusedAgentIndex);
@@ -304,6 +305,9 @@ export function useCityKeyboard(
       if (e.key === 'n' || e.key === 'N') { toggleLabels(); e.preventDefault(); return; }
       if (e.key === 'm' || e.key === 'M') { toggleMinimap(); e.preventDefault(); return; }
       if (e.key === 'c' || e.key === 'C') { toggleHighContrast(); e.preventDefault(); return; }
+      // L (uppercase) — toggle LOD between file view (L2) and district view (L3)
+      // Lowercase 'l' is reserved for vim-style right navigation
+      if (e.key === 'L') { toggleLod(); e.preventDefault(); return; }
 
       // Only city-mode keys below
       if (focusZone !== 'city') return;
@@ -453,7 +457,7 @@ export function useCityKeyboard(
     setCursor, selectBuilding, setCursorDistrict, setFocusZone,
     syncCamera, panByKey, zoomIn, zoomOut, resetZoom,
     toggleRoads, toggleLabels, toggleMinimap,
-    toggleShortcutOverlay, toggleHighContrast,
+    toggleShortcutOverlay, toggleHighContrast, toggleLod,
     setFocusedAgentIndex, setInspectedAgentId,
     openDispatch, openCommandPalette, toggleAlarm,
     rendererRef,
