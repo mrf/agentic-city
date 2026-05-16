@@ -241,6 +241,7 @@ func syncTracker(tracker *Tracker, sessions []session.SessionState, repoPath str
 			continue
 		}
 		if !strings.HasPrefix(s.WorkingDir, repoPath) {
+			tracker.RemoveSession(s.Source + ":" + s.ID)
 			continue
 		}
 		tracker.UpdateSession(awToSessionState(s))

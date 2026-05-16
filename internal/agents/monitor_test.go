@@ -250,6 +250,36 @@ func TestSyncTracker_updatesAndRemovesTerminal(t *testing.T) {
 	}
 }
 
+// TestSyncTracker_removesStaleSessionsOnWorkingDirChange reproduces the UFO count
+// inflation bug: a session that was previously tracked under repoPath must be removed
+// from the tracker when its WorkingDir moves to a different repo, not left as a phantom.
+func TestSyncTracker_removesStaleSessionsOnWorkingDirChange(t *testing.T) {
+	tracker := New("/home/user/myrepo")
+
+	// First sync: session is active under repoPath — gets tracked.
+	syncTracker(tracker, []session.SessionState{
+		{ID: "s1", Source: "claude", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking, WorkingDir: "/home/user/myrepo"},
+	}, "/home/user/myrepo")
+
+	tracker.mu.Lock()
+	if _, ok := tracker.sessions["claude:s1"]; !ok {
+		tracker.mu.Unlock()
+		t.Fatal("setup: claude:s1 should be tracked after first sync")
+	}
+	tracker.mu.Unlock()
+
+	// Second sync: same session now reports a different WorkingDir — must be evicted.
+	syncTracker(tracker, []session.SessionState{
+		{ID: "s1", Source: "claude", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking, WorkingDir: "/home/user/other-project"},
+	}, "/home/user/myrepo")
+
+	tracker.mu.Lock()
+	defer tracker.mu.Unlock()
+	if _, ok := tracker.sessions["claude:s1"]; ok {
+		t.Error("stale session claude:s1 should have been removed when WorkingDir moved outside repoPath")
+	}
+}
+
 func TestAwToSessionState_fieldsMapCorrectly(t *testing.T) {
 	input := session.SessionState{
 		ID:                 "sess-123",
