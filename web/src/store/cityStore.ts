@@ -132,8 +132,10 @@ export interface DistrictBuilding {
   id: string;
   label: string;
   loc: number;
+  totalLoc: number;
   coverage: number;   // weighted average of children with known coverage; -1 if none known
   status: string;     // worst-case: err > warn > unknown > ok
+  statusBreakdown: Record<string, number>;
   fileCount: number;
   agentCount: number;
   gx: number;
@@ -215,6 +217,12 @@ export function selectDistrictBuildings(
       'ok' as string,
     );
 
+    // Status breakdown for right rail display
+    const statusBreakdown: Record<string, number> = {};
+    for (const b of children) {
+      statusBreakdown[b.status] = (statusBreakdown[b.status] ?? 0) + 1;
+    }
+
     // Agent count: agents whose target is a building in this district
     let agentCount = 0;
     for (const id of childIds) {
@@ -225,8 +233,10 @@ export function selectDistrictBuildings(
       id: d.id,
       label: d.label,
       loc,
+      totalLoc: loc,
       coverage,
       status,
+      statusBreakdown,
       fileCount,
       agentCount,
       gx: d.gx,

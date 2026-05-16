@@ -84,6 +84,7 @@ export function BottomStrip(): JSX.Element {
   const showMinimap = useUiStore((s) => s.showMinimap);
   const highContrast = useUiStore((s) => s.highContrast);
   const phase2 = useUiStore((s) => s.phase2);
+  const lodLevel = useUiStore((s) => s.lodLevel);
 
   const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null;
 
@@ -122,6 +123,8 @@ export function BottomStrip(): JSX.Element {
           {lastActivity.message}
         </span>
       )}
+
+      <span style={{ ...S.zone, color: sol.base0 }}>{lodLevel}</span>
 
       {focusZone !== 'city' && (
         <span style={S.zone}>focus: {focusZone}</span>

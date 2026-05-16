@@ -4,11 +4,12 @@
  * Cursor movement (H/J/K/L) uses nearest-neighbor search in grid space.
  * Tab/Shift+Tab cycles within district by LOC order.
  * Camera auto-follows when cursor moves off-screen.
+ * At L3, arrow keys navigate district-buildings; Enter zooms to L2 on the district.
  */
 
 import { useEffect, useRef } from 'react';
 import { useCityStore } from '../store/cityStore';
-import { useUiStore } from '../store/uiStore';
+import { useUiStore, LOD_THRESHOLDS } from '../store/uiStore';
 import { useCameraControls } from './useCameraControls';
 import type { Building } from '../store/cityStore';
 import type { CityRenderer } from '../canvas/CityRenderer';
@@ -26,25 +27,34 @@ const DIR_VECTORS: Record<Direction, [number, number]> = {
 const MAX_ANGLE = 75 * Math.PI / 180;
 const COS_MAX_ANGLE = Math.cos(MAX_ANGLE);
 
-function buildingCenter(b: Building): [number, number] {
-  return [b.gx + b.gw / 2, b.gy + b.gh / 2];
+/** Minimum grid item needed for spatial navigation. */
+interface GridItem {
+  id: string;
+  gx: number;
+  gy: number;
+  gw: number;
+  gh: number;
 }
 
-/** Find the nearest building from `from` in the given isometric direction. */
-function findNearest(
-  from: Building,
-  candidates: Building[],
-  dir: Direction,
-): Building | null {
-  const [dx, dy] = DIR_VECTORS[dir];
-  const [cx, cy] = buildingCenter(from);
+function gridCenter(item: GridItem): [number, number] {
+  return [item.gx + item.gw / 2, item.gy + item.gh / 2];
+}
 
-  let best: Building | null = null;
+/** Find the nearest item from `from` in the given isometric direction. */
+function findNearest<T extends GridItem>(
+  from: T,
+  candidates: T[],
+  dir: Direction,
+): T | null {
+  const [dx, dy] = DIR_VECTORS[dir];
+  const [cx, cy] = gridCenter(from);
+
+  let best: T | null = null;
   let bestScore = Infinity;
 
   for (const b of candidates) {
     if (b.id === from.id) continue;
-    const [bx, by] = buildingCenter(b);
+    const [bx, by] = gridCenter(b);
     const vx = bx - cx;
     const vy = by - cy;
 
@@ -66,13 +76,28 @@ function findNearest(
   return best;
 }
 
+/** Zoom camera to L2 scale and center on the given grid rect. */
+function zoomToL2(
+  camera: IsometricCamera,
+  item: GridItem,
+  syncCamera: (cam: IsometricCamera) => void,
+): void {
+  // Solidly inside L2 (well above the L3→L2 enter threshold of 1.2)
+  camera.scale = LOD_THRESHOLDS.L2.enter * 1.25;
+  const [cx, cy] = gridCenter(item);
+  const [sx, sy] = camera.project(cx, cy, 0);
+  camera.ox += window.innerWidth / 2 - sx;
+  camera.oy += window.innerHeight / 2 - sy;
+  syncCamera(camera);
+}
+
 /** Pan camera so the building stays in view. If `force`, always center. */
 function autoFollow(
   camera: IsometricCamera,
   building: Building,
   force = false,
 ): void {
-  const [cx, cy] = buildingCenter(building);
+  const [cx, cy] = gridCenter(building);
   const [sx, sy] = camera.project(cx, cy, building.gz / 2);
 
   const w = window.innerWidth;
@@ -106,6 +131,9 @@ export function useCityKeyboard(
   const cursorBuildingId = useUiStore((s) => s.cursorBuildingId);
   const setCursor = useUiStore((s) => s.setCursor);
   const selectBuilding = useUiStore((s) => s.selectBuilding);
+  const cursorDistrictId = useUiStore((s) => s.cursorDistrictId);
+  const setCursorDistrict = useUiStore((s) => s.setCursorDistrict);
+  const lodLevel = useUiStore((s) => s.lodLevel);
   const focusZone = useUiStore((s) => s.focusZone);
   const setFocusZone = useUiStore((s) => s.setFocusZone);
   const toggleRoads = useUiStore((s) => s.toggleRoads);
@@ -131,13 +159,13 @@ export function useCityKeyboard(
 
   // Ref holds latest reactive state so the keydown handler stays stable
   const stateRef = useRef({
-    buildings, districts, agents, cursorBuildingId, focusZone,
-    showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
+    buildings, districts, agents, cursorBuildingId, cursorDistrictId, lodLevel,
+    focusZone, showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
     phase2, dispatchMode, commandPaletteOpen, alarmActive,
   });
   stateRef.current = {
-    buildings, districts, agents, cursorBuildingId, focusZone,
-    showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
+    buildings, districts, agents, cursorBuildingId, cursorDistrictId, lodLevel,
+    focusZone, showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
     phase2, dispatchMode, commandPaletteOpen, alarmActive,
   };
 
@@ -152,8 +180,8 @@ export function useCityKeyboard(
       if (!renderer) return;
       const cam = renderer.camera;
       const {
-        buildings, districts, agents, cursorBuildingId, focusZone,
-        showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
+        buildings, districts, agents, cursorBuildingId, cursorDistrictId, lodLevel,
+        focusZone, showShortcutOverlay, focusedAgentIndex, inspectedAgentId,
         phase2, dispatchMode, commandPaletteOpen, alarmActive,
       } = stateRef.current;
 
@@ -305,7 +333,48 @@ export function useCityKeyboard(
           resetZoom(cam); e.preventDefault(); return;
       }
 
-      // --- Cursor navigation ---
+      // --- L3: navigate district-buildings ---
+      if (lodLevel === 'L3') {
+        if (districts.length === 0) return;
+
+        const navKeys = ['h', 'j', 'k', 'l', 'Enter'];
+        if (!navKeys.includes(e.key)) return;
+
+        const districtItems: GridItem[] = districts.map((d) => ({
+          id: d.id, gx: d.gx, gy: d.gy, gw: d.gw, gh: d.gh,
+        }));
+
+        const cursorDistrict = districtItems.find((d) => d.id === cursorDistrictId) ?? null;
+
+        // First nav key initialises the district cursor
+        if (!cursorDistrict) {
+          setCursorDistrict(districtItems[0].id);
+          e.preventDefault();
+          return;
+        }
+
+        const dirMap: Record<string, Direction> = {
+          h: 'left', l: 'right', k: 'up', j: 'down',
+        };
+        const dir = dirMap[e.key];
+        if (dir) {
+          const target = findNearest(cursorDistrict, districtItems, dir);
+          if (target) setCursorDistrict(target.id);
+          e.preventDefault();
+          return;
+        }
+
+        // Enter — zoom to L2 centered on the cursor district
+        if (e.key === 'Enter') {
+          zoomToL2(cam, cursorDistrict, syncCamera);
+          e.preventDefault();
+          return;
+        }
+
+        return;
+      }
+
+      // --- L1/L2: navigate file-buildings ---
       if (buildings.length === 0) return;
 
       const cursor = buildings.find((b) => b.id === cursorBuildingId) ?? null;
@@ -381,7 +450,7 @@ export function useCityKeyboard(
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
-    setCursor, selectBuilding, setFocusZone,
+    setCursor, selectBuilding, setCursorDistrict, setFocusZone,
     syncCamera, panByKey, zoomIn, zoomOut, resetZoom,
     toggleRoads, toggleLabels, toggleMinimap,
     toggleShortcutOverlay, toggleHighContrast,
