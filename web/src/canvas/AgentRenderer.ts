@@ -23,9 +23,10 @@
  */
 
 import type { IsometricCamera } from './IsometricCamera';
-import type { Agent, Building } from '../store/cityStore';
+import type { Agent, Building, DistrictBuilding } from '../store/cityStore';
 import { AnimationManager } from './AnimationManager';
 import { sol as SD } from '../theme/colors';
+import type { LodLevel } from '../store/uiStore';
 
 /** Map agent.color field → hex colour. */
 function agentColor(color: string): string {
@@ -63,6 +64,11 @@ const BEAM_TOP_HALF   = 9;  // half-width of beam at UFO end
 const BEAM_BOTTOM_HALF = 3;  // half-width of beam at building end
 const FLIGHT_ARC_H    = 80; // bezier arc height in screen pixels
 
+/** Clamp camera scale to a sane range for UFO sizing. */
+function clampScale(cameraScale: number): number {
+  return Math.max(0.6, Math.min(1.5, cameraScale));
+}
+
 // ── Main draw entry ─────────────────────────────────────────────────────────
 
 export function drawAgents(
@@ -72,6 +78,8 @@ export function drawAgents(
   buildings: Building[],
   time: number,
   animManager: AnimationManager,
+  lodLevel: LodLevel = 'L2',
+  districtBuildings: DistrictBuilding[] = [],
 ): void {
   if (agents.length === 0) return;
 
@@ -86,13 +94,44 @@ export function drawAgents(
 
   ctx.save();
 
-  for (const agent of agents) {
-    if (agent.fromId && agent.toId && agent.flyProgress !== undefined) {
-      drawFlyingAgent(ctx, camera, agent, buildMap, time, animManager);
-    } else if (agent.targetId) {
-      drawHoveringAgent(ctx, camera, agent, buildMap, cityCenter, time, animManager);
-    } else {
-      drawStagingAgent(ctx, camera, agent, cityCenter, time, animManager);
+  if (lodLevel === 'L3') {
+    // Build lookup: buildingId → DistrictBuilding
+    const districtByBuildingId = new Map<string, DistrictBuilding>();
+    const districtMap = new Map<string, DistrictBuilding>(districtBuildings.map((d) => [d.id, d]));
+    for (const b of buildings) {
+      const db = districtMap.get(b.districtId);
+      if (db) districtByBuildingId.set(b.id, db);
+    }
+
+    // Track per-district cluster slot count so agents spread out without overlapping.
+    const districtSlots = new Map<string, number>();
+
+    for (const agent of agents) {
+      if (agent.fromId && agent.toId && agent.flyProgress !== undefined) {
+        drawFlyingAgentL3(ctx, camera, agent, districtByBuildingId, districtSlots, time, animManager);
+      } else if (agent.targetId) {
+        const db = districtByBuildingId.get(agent.targetId);
+        if (db) {
+          const slot = districtSlots.get(db.id) ?? 0;
+          districtSlots.set(db.id, slot + 1);
+          drawHoveringAgentOnDistrict(ctx, camera, agent, db, slot, time, animManager);
+        } else {
+          // Target building not found in any district — fall back to staging.
+          drawStagingAgent(ctx, camera, agent, cityCenter, time, animManager);
+        }
+      } else {
+        drawStagingAgent(ctx, camera, agent, cityCenter, time, animManager);
+      }
+    }
+  } else {
+    for (const agent of agents) {
+      if (agent.fromId && agent.toId && agent.flyProgress !== undefined) {
+        drawFlyingAgent(ctx, camera, agent, buildMap, time, animManager);
+      } else if (agent.targetId) {
+        drawHoveringAgent(ctx, camera, agent, buildMap, cityCenter, time, animManager);
+      } else {
+        drawStagingAgent(ctx, camera, agent, cityCenter, time, animManager);
+      }
     }
   }
 
@@ -117,6 +156,93 @@ function computeCityCenterScreen(
     sumY += pt[1];
   }
   return [sumX / buildings.length, sumY / buildings.length];
+}
+
+// ── L3: agent parked on district-building surface ───────────────────────────
+
+/**
+ * Horizontal spacing between UFOs parked on the same district building.
+ * Each slot offsets the UFO so agents don't overlap.
+ */
+const DISTRICT_SLOT_SPACING = 30;
+
+/**
+ * Draws a work agent parked on a district-building roof at L3.
+ * Agents cluster across the roof surface; `slot` is the agent's index among
+ * all agents parked on this district this frame.
+ * No tractor beam is drawn — the UFO just hovers visibly above the district.
+ */
+function drawHoveringAgentOnDistrict(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  agent: Agent,
+  db: DistrictBuilding,
+  slot: number,
+  time: number,
+  animManager: AnimationManager,
+): void {
+  const cx = db.gx + db.gw / 2;
+  const cy = db.gy + db.gh / 2;
+  const roofPt = camera.project(cx, cy, db.gz);
+
+  const clampedScale = clampScale(camera.scale);
+  // Spread agents: slot 0 → centre, slot 1 → right, slot 2 → left, slot 3 → 2×right, …
+  const rank = Math.ceil(slot / 2);
+  const side = slot % 2 === 0 ? 1 : -1;
+  const offsetX = (slot === 0 ? 0 : side * rank) * DISTRICT_SLOT_SPACING * clampedScale;
+  const sx = roofPt[0] + offsetX;
+  const sy = roofPt[1] - 25 * clampedScale + animManager.getHoverBob(agent.id, time);
+
+  drawUFO(ctx, agent, sx, sy, camera.scale, time, animManager);
+}
+
+/**
+ * Draws a flying agent at L3.
+ *
+ * - Same district: park on the district-building surface (mid-flight pause).
+ * - Different districts: fly on a bezier between the two district-building roofs.
+ */
+function drawFlyingAgentL3(
+  ctx: CanvasRenderingContext2D,
+  camera: IsometricCamera,
+  agent: Agent,
+  districtByBuildingId: Map<string, DistrictBuilding>,
+  districtSlots: Map<string, number>,
+  time: number,
+  animManager: AnimationManager,
+): void {
+  const fromDb = districtByBuildingId.get(agent.fromId!);
+  const toDb   = districtByBuildingId.get(agent.toId!);
+
+  if (!fromDb || !toDb) return;
+
+  if (fromDb.id === toDb.id) {
+    // Same district — park on the district surface.
+    const slot = districtSlots.get(toDb.id) ?? 0;
+    districtSlots.set(toDb.id, slot + 1);
+    drawHoveringAgentOnDistrict(ctx, camera, agent, toDb, slot, time, animManager);
+    return;
+  }
+
+  // Different districts — fly between district-building roof centres.
+  const fromCx = fromDb.gx + fromDb.gw / 2;
+  const fromCy = fromDb.gy + fromDb.gh / 2;
+  const toCx   = toDb.gx + toDb.gw / 2;
+  const toCy   = toDb.gy + toDb.gh / 2;
+
+  const fromPt = camera.project(fromCx, fromCy, fromDb.gz);
+  const toPt   = camera.project(toCx,   toCy,   toDb.gz);
+
+  const p0: [number, number] = [fromPt[0], fromPt[1]];
+  const p3: [number, number] = [toPt[0],   toPt[1]];
+  const p1: [number, number] = [fromPt[0], fromPt[1] - FLIGHT_ARC_H];
+  const p2: [number, number] = [toPt[0],   toPt[1]   - FLIGHT_ARC_H];
+
+  const t = Math.max(0, Math.min(1, agent.flyProgress ?? 0));
+  const [sx, sy] = AnimationManager.bezier(p0, p1, p2, p3, t);
+
+  drawFlightPath(ctx, p0, p1, p2, p3, t, agentColor(agent.color));
+  drawUFO(ctx, agent, sx, sy, camera.scale, time, animManager);
 }
 
 // ── Hovering agent (has targetId) ───────────────────────────────────────────
@@ -144,7 +270,7 @@ function drawHoveringAgent(
 
   // UFO hovers above the roof then is pushed outward from the city centre so
   // the buildings remain clearly visible beneath it.
-  const clampedScale = Math.max(0.6, Math.min(1.5, camera.scale));
+  const clampedScale = clampScale(camera.scale);
   const baseX = roofPt[0];
   const baseY = roofPt[1] - 30 * clampedScale;
 
@@ -186,7 +312,7 @@ function drawStagingAgent(
 ): void {
   // Park the UFO above the city centre with a horizontal offset per slot
   // to avoid overlapping.
-  const clampedScale = Math.max(0.6, Math.min(1.5, camera.scale));
+  const clampedScale = clampScale(camera.scale);
   const slot = stagingSlotIndex++;
   const offsetX = (slot - 1) * STAGING_SLOT_SPACING * clampedScale;
   const sx = cityCenter[0] + offsetX;

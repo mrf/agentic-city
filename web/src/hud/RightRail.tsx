@@ -287,7 +287,7 @@ export function RightRail(): JSX.Element {
 
   // At L3: show the cursor district-building if one is active
   const districtBuildings = useMemo(
-    () => lodLevel === 'L3' ? selectDistrictBuildings(city) : null,
+    () => lodLevel === 'L3' ? selectDistrictBuildings(city.districts, city.buildings, city.agents) : null,
     [lodLevel, city],
   );
   const districtBuilding = districtBuildings && cursorDistrictId

@@ -48,7 +48,7 @@ export class CityRenderer {
 
   setCity(city: CityState): void {
     this.city = city;
-    this.districtBuildings = selectDistrictBuildings(city);
+    this.districtBuildings = selectDistrictBuildings(city.districts, city.buildings, city.agents);
     if (!this.hasFitted && (city.buildings.length > 0 || city.districts.length > 0)) {
       this.hasFitted = true;
       const dpr = window.devicePixelRatio || 1;
@@ -136,9 +136,13 @@ export class CityRenderer {
       drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, now, occluderIds);
     }
 
-    // 5. Agents — UFOs hover above or fly between buildings (all LOD levels)
+    // 5. Agents — UFOs hover above or fly between buildings (all LOD levels).
+    //    At L3 agents reposition onto district-building surfaces.
     if (this.city.agents.length > 0) {
-      drawAgents(ctx, this.camera, this.city.agents, this.city.buildings, now, this.animManager);
+      drawAgents(
+        ctx, this.camera, this.city.agents, this.city.buildings,
+        now, this.animManager, this.lodLevel, this.districtBuildings,
+      );
     }
 
     // 6. Hover highlight — only meaningful at file-level (non-L3)
