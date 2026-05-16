@@ -59,6 +59,13 @@ export function useSessionPersist(
     const scheduleSave = () => {
       if (timer !== null) clearTimeout(timer);
       timer = setTimeout(() => {
+        // Guard against stale closure: if the repo changed before this timer
+        // fired (possible when React's async commit hasn't run cleanup yet),
+        // skip the save to avoid persisting new-repo state under the old key.
+        if (useCityStore.getState().city.repoInfo.name !== repoName) {
+          timer = null;
+          return;
+        }
         const ui = useUiStore.getState();
         const cam = rendererRef.current?.camera;
         saveSession(repoName, {
