@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { useCityStore } from '../store/cityStore';
 import { useUiStore, DISPATCH_ROLES } from '../store/uiStore';
@@ -264,103 +264,95 @@ export function DispatchWizard(): JSX.Element | null {
     if (dispatchStep === 2 && !dispatchRole) setRoleFocusIndex(0);
   }, [dispatchStep, dispatchRole]);
 
-  // Keyboard handler — uses ref for current state
-  const stateRef = useRef({
-    dispatchStep, dispatchScope, dispatchRole, dispatchMode,
+  // Keyboard handler — useCallback with full deps so no stale closure risk
+  const keyboardHandler = useCallback((e: KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (!dispatchMode) return;
+
+    // Escape: back or close
+    if (e.key === 'Escape') {
+      if (dispatchStep === 1) {
+        closeDispatch();
+      } else {
+        setDispatchStep((dispatchStep - 1) as DispatchStep);
+      }
+      e.preventDefault();
+      return;
+    }
+
+    // Tab / Shift+Tab: advance / retreat step
+    if (e.key === 'Tab') {
+      if (e.shiftKey) {
+        if (dispatchStep > 1) {
+          setDispatchStep((dispatchStep - 1) as DispatchStep);
+        }
+      } else {
+        if (dispatchStep === 1 && dispatchScope.length > 0) {
+          setDispatchStep(2);
+        } else if (dispatchStep === 2 && dispatchRole) {
+          setDispatchStep(3);
+        }
+      }
+      e.preventDefault();
+      return;
+    }
+
+    switch (dispatchStep) {
+      case 1: {
+        const maxIdx = sortedBuildings.length - 1;
+        if (e.key === 'j' || e.key === 'ArrowDown') {
+          setScopeFocusIndex((prev) => Math.min(prev + 1, maxIdx));
+          e.preventDefault();
+        } else if (e.key === 'k' || e.key === 'ArrowUp') {
+          setScopeFocusIndex((prev) => Math.max(prev - 1, 0));
+          e.preventDefault();
+        } else if (e.key === ' ') {
+          const b = sortedBuildings[scopeFocusIndex];
+          if (b) toggleScopeBuilding(b.id);
+          e.preventDefault();
+        } else if (e.key === 'Enter') {
+          if (dispatchScope.length > 0) setDispatchStep(2);
+          e.preventDefault();
+        }
+        break;
+      }
+      case 2: {
+        const maxIdx = DISPATCH_ROLES.length - 1;
+        if (e.key === 'j' || e.key === 'ArrowDown') {
+          setRoleFocusIndex((prev) => Math.min(prev + 1, maxIdx));
+          e.preventDefault();
+        } else if (e.key === 'k' || e.key === 'ArrowUp') {
+          setRoleFocusIndex((prev) => Math.max(prev - 1, 0));
+          e.preventDefault();
+        } else if (e.key === 'Enter') {
+          const role = DISPATCH_ROLES[roleFocusIndex];
+          if (role) {
+            setDispatchRole(role.id);
+            setDispatchStep(3);
+          }
+          e.preventDefault();
+        }
+        break;
+      }
+      case 3: {
+        if (e.key === 'Enter') {
+          closeDispatch();
+          e.preventDefault();
+        }
+        break;
+      }
+    }
+  }, [
+    dispatchMode, dispatchStep, dispatchScope, dispatchRole,
     sortedBuildings, scopeFocusIndex, roleFocusIndex,
-  });
-  stateRef.current = {
-    dispatchStep, dispatchScope, dispatchRole, dispatchMode,
-    sortedBuildings, scopeFocusIndex, roleFocusIndex,
-  };
+    closeDispatch, setDispatchStep, toggleScopeBuilding, setDispatchRole,
+  ]);
 
   useEffect(() => {
     if (!dispatchMode) return;
-
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      const st = stateRef.current;
-      if (!st.dispatchMode) return;
-
-      // Escape: back or close
-      if (e.key === 'Escape') {
-        if (st.dispatchStep === 1) {
-          closeDispatch();
-        } else {
-          setDispatchStep((st.dispatchStep - 1) as DispatchStep);
-        }
-        e.preventDefault();
-        return;
-      }
-
-      // Tab / Shift+Tab: advance / retreat step
-      if (e.key === 'Tab') {
-        if (e.shiftKey) {
-          if (st.dispatchStep > 1) {
-            setDispatchStep((st.dispatchStep - 1) as DispatchStep);
-          }
-        } else {
-          if (st.dispatchStep === 1 && st.dispatchScope.length > 0) {
-            setDispatchStep(2);
-          } else if (st.dispatchStep === 2 && st.dispatchRole) {
-            setDispatchStep(3);
-          }
-        }
-        e.preventDefault();
-        return;
-      }
-
-      switch (st.dispatchStep) {
-        case 1: {
-          const maxIdx = st.sortedBuildings.length - 1;
-          if (e.key === 'j' || e.key === 'ArrowDown') {
-            setScopeFocusIndex((prev) => Math.min(prev + 1, maxIdx));
-            e.preventDefault();
-          } else if (e.key === 'k' || e.key === 'ArrowUp') {
-            setScopeFocusIndex((prev) => Math.max(prev - 1, 0));
-            e.preventDefault();
-          } else if (e.key === ' ') {
-            const b = st.sortedBuildings[st.scopeFocusIndex];
-            if (b) toggleScopeBuilding(b.id);
-            e.preventDefault();
-          } else if (e.key === 'Enter') {
-            if (st.dispatchScope.length > 0) setDispatchStep(2);
-            e.preventDefault();
-          }
-          break;
-        }
-        case 2: {
-          const maxIdx = DISPATCH_ROLES.length - 1;
-          if (e.key === 'j' || e.key === 'ArrowDown') {
-            setRoleFocusIndex((prev) => Math.min(prev + 1, maxIdx));
-            e.preventDefault();
-          } else if (e.key === 'k' || e.key === 'ArrowUp') {
-            setRoleFocusIndex((prev) => Math.max(prev - 1, 0));
-            e.preventDefault();
-          } else if (e.key === 'Enter') {
-            const role = DISPATCH_ROLES[st.roleFocusIndex];
-            if (role) {
-              setDispatchRole(role.id);
-              setDispatchStep(3);
-            }
-            e.preventDefault();
-          }
-          break;
-        }
-        case 3: {
-          if (e.key === 'Enter') {
-            closeDispatch();
-            e.preventDefault();
-          }
-          break;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [dispatchMode, closeDispatch, setDispatchStep, toggleScopeBuilding, setDispatchRole]);
+    window.addEventListener('keydown', keyboardHandler);
+    return () => window.removeEventListener('keydown', keyboardHandler);
+  }, [dispatchMode, keyboardHandler]);
 
   if (!phase2 || !dispatchMode) return null;
 
