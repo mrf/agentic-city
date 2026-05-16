@@ -27,9 +27,9 @@ export class AnimationManager {
     return phase;
   }
 
-  /** Gentle vertical hover bob in screen pixels (−3 … +3). */
+  /** Subtle vertical hover bob in screen pixels (−1 … +1), ~4 s period. */
   getHoverBob(agentId: string, time: number): number {
-    return Math.sin(time * 0.0015 + this.getPhase(agentId)) * 3;
+    return Math.sin(time * 0.0015 + this.getPhase(agentId)) * 1;
   }
 
   /** Rotation angle for porthole spin [0, 2π). */
