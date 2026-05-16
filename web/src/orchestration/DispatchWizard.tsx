@@ -5,6 +5,7 @@ import { useUiStore, DISPATCH_ROLES } from '../store/uiStore';
 import type { DispatchStep } from '../store/uiStore';
 import { sol, FONT, TOP_BAR_H, BOTTOM_STRIP_H, tierColor } from '../hud/palette';
 import { ScopeSelector } from './ScopeSelector';
+import { useFocusRestore } from '../hooks/useFocusTrap';
 
 const PANEL_W = 320;
 
@@ -222,6 +223,23 @@ export function DispatchWizard(): JSX.Element | null {
   const [scopeFocusIndex, setScopeFocusIndex] = useState(0);
   const [roleFocusIndex, setRoleFocusIndex] = useState(0);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusRestore(!!dispatchMode);
+
+  // Move focus into the panel when wizard opens so keyboard events land here
+  useEffect(() => {
+    if (dispatchMode) {
+      requestAnimationFrame(() => {
+        const el = panelRef.current;
+        if (!el) return;
+        const first = el.querySelector<HTMLElement>(
+          'button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        );
+        (first ?? el).focus();
+      });
+    }
+  }, [dispatchMode]);
+
   const sortedBuildings = useMemo(
     () =>
       [...buildings].sort((a, b) => {
@@ -359,7 +377,9 @@ export function DispatchWizard(): JSX.Element | null {
   const previewText = previewLines.join('\n');
 
   return (
-    <div style={S.panel}>
+    // tabIndex={-1} lets the panel receive programmatic focus (initial focus on open)
+    // Tab is already trapped by the global keydown handler above (always e.preventDefault())
+    <div ref={panelRef} style={{ ...S.panel, outline: 'none' }} tabIndex={-1}>
       {/* Header */}
       <div style={S.header}>
         <span style={S.headerLabel}>▶ dispatch</span>

@@ -14,6 +14,7 @@ import type { Building, Road, ActivityEvent } from '../store/cityStore';
 import { useUiStore } from '../store/uiStore';
 import { sol, FONT, TOP_BAR_H, BOTTOM_STRIP_H } from '../hud/palette';
 import { RapidResponse } from './RapidResponse';
+import { useFocusTrap, useFocusRestore } from '../hooks/useFocusTrap';
 
 // ── Alarm state derivation ──────────────────────────────────────────
 
@@ -306,6 +307,22 @@ export function AlarmOverlay(): JSX.Element | null {
     [buildings, roads, activities],
   );
 
+  const overlayRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(overlayRef, alarmActive);
+  useFocusRestore(alarmActive);
+
+  // Move focus into the overlay when alarm activates
+  useEffect(() => {
+    if (alarmActive) {
+      requestAnimationFrame(() => {
+        const el = overlayRef.current;
+        if (!el) return;
+        const first = el.querySelector<HTMLElement>('button:not([disabled])');
+        (first ?? el).focus();
+      });
+    }
+  }, [alarmActive]);
+
   // Keyboard handler — Escape dismisses alarm when dispatch wizard is closed
   const dispatchRef = useRef(dispatchMode);
   dispatchRef.current = dispatchMode;
@@ -346,7 +363,9 @@ export function AlarmOverlay(): JSX.Element | null {
   const originDistrict = alarm.origin?.districtId ?? '';
 
   return (
-    <>
+    // Wrapper div (no visual effect — all children are position:fixed) holds the
+    // focus trap ref so Tab cycles within overlay elements while alarm is active.
+    <div ref={overlayRef} tabIndex={-1} style={{ outline: 'none' }}>
       {/* CSS animations for alarm state */}
       <style>{`
         @keyframes ac-alarm-blink {
@@ -493,6 +512,6 @@ export function AlarmOverlay(): JSX.Element | null {
           <StatLine label="since" value={elapsed} valueColor={sol.red} />
         </PanelBox>
       </div>
-    </>
+    </div>
   );
 }
