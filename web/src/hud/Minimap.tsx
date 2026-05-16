@@ -1,9 +1,13 @@
 /**
  * Minimap — reduced-scale city overview with agent positions and viewport rect.
  * Toggled by the M key via uiStore.showMinimap.
+ *
+ * Two-layer canvas design:
+ *   staticCanvas — buildings + agents; redraws only when layout data changes
+ *   vpCanvas     — viewport rect; redraws on every camera/zoom change (cheap)
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useCityStore } from '../store/cityStore';
 import { useUiStore } from '../store/uiStore';
 import { sol, FONT, BOTTOM_STRIP_H } from './palette';
@@ -18,7 +22,7 @@ const COS30 = Math.cos(Math.PI / 6);
 const SIN30 = Math.sin(Math.PI / 6);
 
 function isoFlat(gx: number, gy: number): [number, number] {
-  return [gx * COS30 + gy * COS30, gx * -SIN30 + gy * SIN30];
+  return [COS30 * (gx + gy), SIN30 * (gy - gx)];
 }
 
 function buildingCorners(b: Building): [number, number][] {
@@ -54,6 +58,33 @@ function agentGridPos(
   return null;
 }
 
+/** Minimap projection parameters derived from building layout. */
+interface Proj {
+  ox: number;
+  oy: number;
+  fitScale: number;
+}
+
+function makeProject(p: Proj): (gx: number, gy: number) => [number, number] {
+  return (gx, gy) => {
+    const [px, py] = isoFlat(gx, gy);
+    return [p.ox + px * p.fitScale, p.oy + py * p.fitScale];
+  };
+}
+
+/** Reset a canvas to logical W*H with DPR scaling; returns the 2D context. */
+function prepareCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = `${W}px`;
+  canvas.style.height = `${H}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
 export function Minimap(): JSX.Element | null {
   const showMinimap = useUiStore((s) => s.showMinimap);
   if (!showMinimap) return null;
@@ -61,36 +92,18 @@ export function Minimap(): JSX.Element | null {
 }
 
 function MinimapCanvas(): JSX.Element {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const staticCanvasRef = useRef<HTMLCanvasElement>(null);
+  const vpCanvasRef = useRef<HTMLCanvasElement>(null);
+
   const buildings = useCityStore((s) => s.city.buildings);
   const agents = useCityStore((s) => s.city.agents);
   const zoom = useUiStore((s) => s.zoom);
   const cameraX = useUiStore((s) => s.cameraX);
   const cameraY = useUiStore((s) => s.cameraY);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
-    canvas.style.width = `${W}px`;
-    canvas.style.height = `${H}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    // Background
-    ctx.fillStyle = sol.base02;
-    ctx.fillRect(0, 0, W, H);
-
-    if (buildings.length === 0) {
-      drawBorder(ctx);
-      return;
-    }
-
-    // Compute iso bounding box of all building corners (gz ignored for flat overhead view)
+  // Projection params — cheap arithmetic, recomputed only when buildings change.
+  const proj = useMemo((): Proj | null => {
+    if (buildings.length === 0) return null;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const b of buildings) {
       for (const corner of buildingCorners(b)) {
@@ -101,17 +114,30 @@ function MinimapCanvas(): JSX.Element {
         if (py > maxY) maxY = py;
       }
     }
-
     const contentW = maxX - minX || 1;
     const contentH = maxY - minY || 1;
     const fitScale = Math.min((W - PAD * 2) / contentW, (H - PAD * 2) / contentH);
     const ox = PAD + ((W - PAD * 2) - contentW * fitScale) / 2 - minX * fitScale;
     const oy = PAD + ((H - PAD * 2) - contentH * fitScale) / 2 - minY * fitScale;
+    return { ox, oy, fitScale };
+  }, [buildings]);
 
-    function project(gx: number, gy: number): [number, number] {
-      const [px, py] = isoFlat(gx, gy);
-      return [ox + px * fitScale, oy + py * fitScale];
+  // Expensive: buildings + agents full canvas redraw — skipped on camera/zoom changes.
+  useEffect(() => {
+    const canvas = staticCanvasRef.current;
+    if (!canvas) return;
+    const ctx = prepareCanvas(canvas);
+    if (!ctx) return;
+
+    ctx.fillStyle = sol.base02;
+    ctx.fillRect(0, 0, W, H);
+
+    if (!proj) {
+      drawBorder(ctx);
+      return;
     }
+
+    const project = makeProject(proj);
 
     // Building footprints
     for (const b of buildings) {
@@ -133,13 +159,33 @@ function MinimapCanvas(): JSX.Element {
       ctx.fill();
     }
 
-    // Viewport rectangle — unproject screen corners via main camera state
+    ctx.fillStyle = sol.base00;
+    ctx.font = `9px ${FONT}`;
+    ctx.fillText('MINIMAP', 4, H - 4);
+
+    drawBorder(ctx);
+  }, [buildings, agents, proj]);
+
+  // Cheap: viewport rect only — runs on every camera/zoom change without touching buildings.
+  useEffect(() => {
+    const canvas = vpCanvasRef.current;
+    if (!canvas) return;
+    const ctx = prepareCanvas(canvas);
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, W, H);
+
+    if (!proj) return;
+
+    const project = makeProject(proj);
+
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+
     function unproject(sx: number, sy: number): [number, number] {
       const rx = (sx - cameraX) / zoom;
       const ry = (sy - cameraY) / zoom;
-      // Invert: rx = gx*COS30 + gy*COS30, ry = gx*(-SIN30) + gy*SIN30
+      // Invert isoFlat: rx = COS30*(gx+gy), ry = SIN30*(gy-gx)
       const gx = (rx / COS30 + ry / SIN30) / 2;
       const gy = (rx / COS30 - ry / SIN30) / 2;
       return [gx, gy];
@@ -163,28 +209,25 @@ function MinimapCanvas(): JSX.Element {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
-
-    // Label
-    ctx.fillStyle = sol.base00;
-    ctx.font = `9px ${FONT}`;
-    ctx.fillText('MINIMAP', 4, H - 4);
-
-    drawBorder(ctx);
-  }, [buildings, agents, zoom, cameraX, cameraY]);
+  }, [zoom, cameraX, cameraY, proj]);
 
   return (
-    <canvas
-      ref={canvasRef}
+    <div
       style={{
         position: 'fixed',
         bottom: BOTTOM_STRIP_H + 8,
         right: 8,
         zIndex: 80,
+        width: W,
+        height: H,
         opacity: 0.9,
         pointerEvents: 'none',
         userSelect: 'none',
       }}
-    />
+    >
+      <canvas ref={staticCanvasRef} style={{ position: 'absolute', top: 0, left: 0 }} />
+      <canvas ref={vpCanvasRef} style={{ position: 'absolute', top: 0, left: 0 }} />
+    </div>
   );
 }
 
