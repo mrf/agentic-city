@@ -51,7 +51,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-platform
 
       - name: Lint
         run: npx eslint src --ext .ts,.tsx
