@@ -41,8 +41,10 @@ function parsePath(path: string): string[] {
     .map((s) => s.replace(/~1/g, '/').replace(/~0/g, '~'));
 }
 
-/** Immutably set value at the given path segments inside doc. */
-function setAt(doc: unknown, segments: string[], value: unknown): unknown {
+/** Immutably set value at the given path segments inside doc.
+ *  When insert is true and the target is an array index leaf, splices instead of
+ *  overwrites — implementing RFC 6902 section 4.1 "add" semantics. */
+function setAt(doc: unknown, segments: string[], value: unknown, insert = false): unknown {
   if (segments.length === 0) return value;
   const [head, ...tail] = segments;
 
@@ -50,16 +52,21 @@ function setAt(doc: unknown, segments: string[], value: unknown): unknown {
     const arr = doc.slice();
     if (head === '-') {
       // RFC 6902: '-' means append
-      arr.push(tail.length === 0 ? value : setAt(undefined, tail, value));
+      arr.push(tail.length === 0 ? value : setAt(undefined, tail, value, insert));
     } else {
       const idx = Number(head);
-      arr[idx] = setAt(arr[idx], tail, value);
+      if (insert && tail.length === 0) {
+        // RFC 6902 §4.1: add at array index inserts before the element at that index
+        arr.splice(idx, 0, value);
+      } else {
+        arr[idx] = setAt(arr[idx], tail, value, insert);
+      }
     }
     return arr;
   }
 
   const obj = (doc ?? {}) as Record<string, unknown>;
-  return { ...obj, [head]: setAt(obj[head], tail, value) };
+  return { ...obj, [head]: setAt(obj[head], tail, value, insert) };
 }
 
 /** Immutably remove the value at the given path segments inside doc. */
@@ -91,6 +98,7 @@ function applyOp(doc: unknown, op: JsonPatchOp): unknown {
   const segments = parsePath(op.path);
   switch (op.op) {
     case 'add':
+      return setAt(doc, segments, op.value, true);
     case 'replace':
       return setAt(doc, segments, op.value);
     case 'remove':
@@ -101,7 +109,7 @@ function applyOp(doc: unknown, op: JsonPatchOp): unknown {
 }
 
 /** Apply a sequence of RFC 6902 operations to doc in order. */
-function applyPatches(doc: unknown, patches: JsonPatchOp[]): unknown {
+export function applyPatches(doc: unknown, patches: JsonPatchOp[]): unknown {
   return patches.reduce(applyOp, doc);
 }
 
