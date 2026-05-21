@@ -1,10 +1,10 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { CityRenderer } from './canvas/CityRenderer';
 import { hitTestBuildings, hitTestAgents, nearestBuildingToScreen } from './canvas/HitTester';
 import { useAnimationFrame } from './hooks/useAnimationFrame';
 import { useCityKeyboard } from './hooks/useCityKeyboard';
-import { useCityStore } from './store/cityStore';
+import { useCityStore, selectDistrictBuildings } from './store/cityStore';
 import { useUiStore } from './store/uiStore';
 import { startWs, stopWs } from './store/wsMiddleware';
 import { HudOverlay } from './hud/HudOverlay';
@@ -36,6 +36,11 @@ export function App(): JSX.Element {
   const [canvasCursor, setCanvasCursor] = useState<string>('default');
   const [canvasFocused, setCanvasFocused] = useState<boolean>(false);
 
+  const districtBuildings = useMemo(
+    () => lodLevel === 'L3' ? selectDistrictBuildings(city.districts, city.buildings, city.agents) : [],
+    [lodLevel, city],
+  );
+
   // Mousemove: update pointer cursor and hover highlight
   const handleCanvasMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -45,7 +50,7 @@ export function App(): JSX.Element {
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
-      const agentIdx = hitTestAgents(renderer.camera, city.agents, city.buildings, sx, sy);
+      const agentIdx = hitTestAgents(renderer.camera, city.agents, city.buildings, sx, sy, lodLevel, districtBuildings);
       if (agentIdx !== null) {
         setCanvasCursor('pointer');
         renderer.hoveredBuildingId = null;
@@ -61,7 +66,7 @@ export function App(): JSX.Element {
         renderer.hoveredBuildingId = null;
       }
     },
-    [city.agents, city.buildings],
+    [city.agents, city.buildings, lodLevel, districtBuildings],
   );
 
   // WebSocket connection lifecycle — connect on mount, disconnect on unmount
@@ -90,7 +95,7 @@ export function App(): JSX.Element {
       const sy = e.clientY - rect.top;
 
       // Check agents first — UFOs float above buildings
-      const agentIdx = hitTestAgents(renderer.camera, city.agents, city.buildings, sx, sy);
+      const agentIdx = hitTestAgents(renderer.camera, city.agents, city.buildings, sx, sy, lodLevel, districtBuildings);
       if (agentIdx !== null) {
         setFocusedAgentIndex(agentIdx);
         setInspectedAgentId(city.agents[agentIdx].id);
@@ -110,7 +115,7 @@ export function App(): JSX.Element {
         if (nearest) setCursor(nearest.id);
       }
     },
-    [city.agents, city.buildings, setCursor, selectBuilding, setFocusedAgentIndex, setInspectedAgentId],
+    [city.agents, city.buildings, lodLevel, districtBuildings, setCursor, selectBuilding, setFocusedAgentIndex, setInspectedAgentId],
   );
 
   // Initialize renderer and connect to live backend

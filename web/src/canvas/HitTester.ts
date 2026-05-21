@@ -10,7 +10,8 @@
  */
 
 import type { IsometricCamera } from './IsometricCamera';
-import type { Building, Agent } from '../store/cityStore';
+import type { Building, Agent, DistrictBuilding } from '../store/cityStore';
+import type { LodLevel } from '../store/uiStore';
 
 function pointInPolygon(px: number, py: number, poly: [number, number][]): boolean {
   let inside = false;
@@ -76,6 +77,12 @@ export function hitTestBuildings(
 const FLIGHT_ARC_H         = 80;
 const STAGING_SLOT_SPACING = 40;
 const UFO_OUTWARD_PUSH     = 80;
+const DISTRICT_SLOT_SPACING = 30;
+
+/** Clamp camera scale to the same range AgentRenderer uses for UFO sizing. */
+function clampScale(camera: IsometricCamera): number {
+  return Math.max(0.6, Math.min(1.5, camera.scale));
+}
 
 /** Cubic bezier point at t — mirrors AnimationManager.bezier without the import. */
 function bezierPoint(
@@ -90,6 +97,18 @@ function bezierPoint(
     mt ** 3 * p0[0] + 3 * mt ** 2 * t * p1[0] + 3 * mt * t ** 2 * p2[0] + t ** 3 * p3[0],
     mt ** 3 * p0[1] + 3 * mt ** 2 * t * p1[1] + 3 * mt * t ** 2 * p2[1] + t ** 3 * p3[1],
   ];
+}
+
+/** Bezier arc position between two screen-projected roof centres at progress t. */
+function flightArcPos(
+  fromPt: [number, number],
+  toPt: [number, number],
+  progress: number,
+): [number, number] {
+  const p1: [number, number] = [fromPt[0], fromPt[1] - FLIGHT_ARC_H];
+  const p2: [number, number] = [toPt[0],   toPt[1]   - FLIGHT_ARC_H];
+  const t = Math.max(0, Math.min(1, progress));
+  return bezierPoint(fromPt, p1, p2, toPt, t);
 }
 
 /**
@@ -108,7 +127,7 @@ function agentScreenPos(
   cityCenter: [number, number],
   stagingSlot: number,
 ): [number, number] | null {
-  const clampedScale = Math.max(0.6, Math.min(1.5, camera.scale));
+  const clampedScale = clampScale(camera);
 
   if (agent.fromId && agent.toId && agent.flyProgress !== undefined) {
     const from = buildMap.get(agent.fromId);
@@ -117,10 +136,7 @@ function agentScreenPos(
 
     const fromPt = camera.project(from.gx + from.gw / 2, from.gy + from.gh / 2, from.gz);
     const toPt   = camera.project(to.gx   + to.gw   / 2, to.gy   + to.gh   / 2, to.gz);
-    const p1: [number, number] = [fromPt[0], fromPt[1] - FLIGHT_ARC_H];
-    const p2: [number, number] = [toPt[0],   toPt[1]   - FLIGHT_ARC_H];
-    const t = Math.max(0, Math.min(1, agent.flyProgress));
-    return bezierPoint(fromPt, p1, p2, toPt, t);
+    return flightArcPos(fromPt, toPt, agent.flyProgress);
   }
 
   if (agent.targetId) {
@@ -149,6 +165,25 @@ function agentScreenPos(
   ];
 }
 
+/**
+ * Screen position for an agent parked on a district building at L3.
+ * Mirrors drawHoveringAgentOnDistrict from AgentRenderer (without hover bob).
+ */
+function districtHoverPos(
+  camera: IsometricCamera,
+  db: DistrictBuilding,
+  slot: number,
+): [number, number] {
+  const clampedScale = clampScale(camera);
+  const cx = db.gx + db.gw / 2;
+  const cy = db.gy + db.gh / 2;
+  const roofPt = camera.project(cx, cy, db.gz);
+  const rank = Math.ceil(slot / 2);
+  const side = slot % 2 === 0 ? 1 : -1;
+  const offsetX = (slot === 0 ? 0 : side * rank) * DISTRICT_SLOT_SPACING * clampedScale;
+  return [roofPt[0] + offsetX, roofPt[1] - 25 * clampedScale];
+}
+
 /** Compute average screen-space position of building centres (gz=0 plane). */
 function cityCenterScreen(
   camera: IsometricCamera,
@@ -169,6 +204,10 @@ const UFO_HIT_RADIUS = 18;
 /**
  * Return the agent at screen point (sx, sy), or null if none.
  * Returns the index into the agents array for direct use with focusedAgentIndex.
+ *
+ * At L3, positions are computed using districtBuildings (mirroring AgentRenderer's L3 branch).
+ * At L1/L2, existing file-level building logic is used. Parameters default to L2 behaviour
+ * so existing callers without LOD arguments continue to work.
  */
 export function hitTestAgents(
   camera: IsometricCamera,
@@ -176,6 +215,8 @@ export function hitTestAgents(
   buildings: Building[],
   sx: number,
   sy: number,
+  lod: LodLevel = 'L2',
+  districtBuildings: DistrictBuilding[] = [],
 ): number | null {
   if (agents.length === 0) return null;
   const buildMap = new Map<string, Building>(buildings.map((b) => [b.id, b]));
@@ -184,20 +225,73 @@ export function hitTestAgents(
 
   let bestIdx: number | null = null;
   let bestDist = hitR * hitR;
-  let stagingSlot = 0;
 
-  for (let i = 0; i < agents.length; i++) {
-    const agent = agents[i];
-    const isFlying    = !!(agent.fromId && agent.toId && agent.flyProgress !== undefined);
-    const isHovering  = !isFlying && !!agent.targetId;
-    const isStagingAgent = !isFlying && !isHovering;
-    const slot = isStagingAgent ? stagingSlot++ : 0;
-    const pos = agentScreenPos(camera, agent, buildMap, cityCenter, slot);
-    if (!pos) continue;
-    const d = (pos[0] - sx) ** 2 + (pos[1] - sy) ** 2;
-    if (d < bestDist) {
-      bestDist = d;
-      bestIdx = i;
+  if (lod === 'L3') {
+    const districtMap = new Map<string, DistrictBuilding>(districtBuildings.map((d) => [d.id, d]));
+    const districtByBuildingId = new Map<string, DistrictBuilding>();
+    for (const b of buildings) {
+      const db = districtMap.get(b.districtId);
+      if (db) districtByBuildingId.set(b.id, db);
+    }
+    const districtSlots = new Map<string, number>();
+    let stagingSlot = 0;
+
+    for (let i = 0; i < agents.length; i++) {
+      const agent = agents[i];
+      let pos: [number, number] | null = null;
+
+      if (agent.fromId && agent.toId && agent.flyProgress !== undefined) {
+        const fromDb = districtByBuildingId.get(agent.fromId);
+        const toDb   = districtByBuildingId.get(agent.toId);
+        if (!fromDb || !toDb) continue;
+
+        if (fromDb.id === toDb.id) {
+          // Same district — park on the district surface (mid-flight pause).
+          const slot = districtSlots.get(toDb.id) ?? 0;
+          districtSlots.set(toDb.id, slot + 1);
+          pos = districtHoverPos(camera, toDb, slot);
+        } else {
+          // Different districts — bezier arc between district-building roof centres.
+          const fromPt = camera.project(fromDb.gx + fromDb.gw / 2, fromDb.gy + fromDb.gh / 2, fromDb.gz);
+          const toPt   = camera.project(toDb.gx   + toDb.gw   / 2, toDb.gy   + toDb.gh   / 2, toDb.gz);
+          pos = flightArcPos(fromPt, toPt, agent.flyProgress);
+        }
+      } else if (agent.targetId) {
+        const db = districtByBuildingId.get(agent.targetId);
+        if (db) {
+          const slot = districtSlots.get(db.id) ?? 0;
+          districtSlots.set(db.id, slot + 1);
+          pos = districtHoverPos(camera, db, slot);
+        } else {
+          // Target building not in any district — fall back to staging.
+          pos = agentScreenPos(camera, agent, buildMap, cityCenter, stagingSlot++);
+        }
+      } else {
+        pos = agentScreenPos(camera, agent, buildMap, cityCenter, stagingSlot++);
+      }
+
+      if (!pos) continue;
+      const d = (pos[0] - sx) ** 2 + (pos[1] - sy) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+  } else {
+    let stagingSlot = 0;
+
+    for (let i = 0; i < agents.length; i++) {
+      const agent = agents[i];
+      const isFlying = !!(agent.fromId && agent.toId && agent.flyProgress !== undefined);
+      const isStaging = !isFlying && !agent.targetId;
+      const slot = isStaging ? stagingSlot++ : 0;
+      const pos = agentScreenPos(camera, agent, buildMap, cityCenter, slot);
+      if (!pos) continue;
+      const d = (pos[0] - sx) ** 2 + (pos[1] - sy) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
     }
   }
 

@@ -1,18 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import { IsometricCamera } from './IsometricCamera';
 import { hitTestAgents } from './HitTester';
-import type { Agent, Building } from '../store/cityStore';
+import type { Agent, Building, DistrictBuilding } from '../store/cityStore';
 
 function mkCamera(): IsometricCamera {
   // 800×600 canvas, scale=1
   return new IsometricCamera(800, 600);
 }
 
-function mkBuilding(id: string, gx: number, gy: number, gw = 4, gh = 4, gz = 3): Building {
+function mkBuilding(id: string, gx: number, gy: number, gw = 4, gh = 4, gz = 3, districtId = 'd'): Building {
   return {
     id, gx, gy, gw, gh, gz,
-    districtId: 'd', label: id, language: 'ts',
+    districtId, label: id, language: 'ts',
     loc: 10, coverage: 0.9, status: 'ok', editing: false, exports: 0,
+  };
+}
+
+function mkDistrictBuilding(id: string, gx: number, gy: number, gw = 10, gh = 10, gz = 5): DistrictBuilding {
+  return {
+    id, gx, gy, gw, gh, gz,
+    label: id, loc: 100, totalLoc: 100,
+    coverage: 0.9, status: 'ok',
+    statusBreakdown: {}, fileCount: 5, agentCount: 0,
   };
 }
 
@@ -181,5 +190,102 @@ describe('hitTestAgents — empty input', () => {
     const camera = mkCamera();
     const result = hitTestAgents(camera, [], [], 400, 300);
     expect(result).toBeNull();
+  });
+});
+
+describe('hitTestAgents — L3 hovering agent on district', () => {
+  it('returns agent index when clicking near district-building roof at L3', () => {
+    const camera = mkCamera();
+    // Building belongs to district 'd1'
+    const building = mkBuilding('b1', 0, 0, 4, 4, 3, 'd1');
+    // District building spans a larger footprint
+    const db = mkDistrictBuilding('d1', -2, -2);
+    const agent = mkAgent({ targetId: 'b1' });
+
+    // Expected position: district roof centre at slot 0 (no offset)
+    // districtHoverPos: cx=db.gx+db.gw/2=-2+5=3, cy=3, gz=5
+    // roofPt = camera.project(3, 3, 5)
+    // sy = roofPt[1] - 25 * 1 (clampedScale=1)
+    const cx = db.gx + db.gw / 2;
+    const cy = db.gy + db.gh / 2;
+    const roofPt = camera.project(cx, cy, db.gz);
+    const expectedSx = roofPt[0]; // slot 0 → offsetX = 0
+    const expectedSy = roofPt[1] - 25;
+
+    const result = hitTestAgents(camera, [agent], [building], expectedSx, expectedSy, 'L3', [db]);
+    expect(result).toBe(0);
+  });
+
+  it('returns null when clicking far from L3 agent', () => {
+    const camera = mkCamera();
+    const building = mkBuilding('b1', 0, 0, 4, 4, 3, 'd1');
+    const db = mkDistrictBuilding('d1', -2, -2);
+    const agent = mkAgent({ targetId: 'b1' });
+    const result = hitTestAgents(camera, [agent], [building], 0, 0, 'L3', [db]);
+    expect(result).toBeNull();
+  });
+
+  it('spreads multiple agents across district slots at L3', () => {
+    const camera = mkCamera();
+    const building = mkBuilding('b1', 0, 0, 4, 4, 3, 'd1');
+    const db = mkDistrictBuilding('d1', -2, -2);
+
+    // slot 0: offsetX = 0 (centre)
+    // slot 1: rank=ceil(1/2)=1, side=(1%2===0?1:-1)=-1, offsetX=-1*1*30=-30
+    const cx = db.gx + db.gw / 2;
+    const cy = db.gy + db.gh / 2;
+    const roofPt = camera.project(cx, cy, db.gz);
+    const DISTRICT_SLOT_SPACING = 30;
+    const slot1Sx = roofPt[0] - 1 * 1 * DISTRICT_SLOT_SPACING; // side=-1, rank=1
+    const slot1Sy = roofPt[1] - 25;
+
+    const agents = [
+      mkAgent({ id: 'a0', targetId: 'b1' }),
+      mkAgent({ id: 'a1', targetId: 'b1' }),
+    ];
+    const result = hitTestAgents(camera, agents, [building], slot1Sx, slot1Sy, 'L3', [db]);
+    expect(result).toBe(1);
+  });
+});
+
+describe('hitTestAgents — L3 flying agent between districts', () => {
+  it('returns agent index at bezier midpoint between district roofs', () => {
+    const camera = mkCamera();
+    const bFrom = mkBuilding('b1', 0, 0, 4, 4, 3, 'd1');
+    const bTo   = mkBuilding('b2', 20, 20, 4, 4, 3, 'd2');
+    const dbFrom = mkDistrictBuilding('d1', -2, -2);
+    const dbTo   = mkDistrictBuilding('d2', 18, 18);
+    const agent = mkAgent({ id: 'fly', fromId: 'b1', toId: 'b2', flyProgress: 0.5 });
+
+    const fromPt = camera.project(dbFrom.gx + dbFrom.gw / 2, dbFrom.gy + dbFrom.gh / 2, dbFrom.gz);
+    const toPt   = camera.project(dbTo.gx   + dbTo.gw   / 2, dbTo.gy   + dbTo.gh   / 2, dbTo.gz);
+    const FLIGHT_ARC_H = 80;
+    const p1: [number, number] = [fromPt[0], fromPt[1] - FLIGHT_ARC_H];
+    const p2: [number, number] = [toPt[0],   toPt[1]   - FLIGHT_ARC_H];
+    const t = 0.5;
+    const mt = 1 - t;
+    const expectedSx = mt**3 * fromPt[0] + 3 * mt**2 * t * p1[0] + 3 * mt * t**2 * p2[0] + t**3 * toPt[0];
+    const expectedSy = mt**3 * fromPt[1] + 3 * mt**2 * t * p1[1] + 3 * mt * t**2 * p2[1] + t**3 * toPt[1];
+
+    const result = hitTestAgents(camera, [agent], [bFrom, bTo], expectedSx, expectedSy, 'L3', [dbFrom, dbTo]);
+    expect(result).toBe(0);
+  });
+
+  it('parks same-district flying agent on district surface', () => {
+    const camera = mkCamera();
+    const bFrom = mkBuilding('b1', 0, 0, 4, 4, 3, 'd1');
+    const bTo   = mkBuilding('b2', 4, 4, 4, 4, 3, 'd1'); // same district
+    const db = mkDistrictBuilding('d1', -2, -2);
+    const agent = mkAgent({ id: 'fly-same', fromId: 'b1', toId: 'b2', flyProgress: 0.5 });
+
+    // Same district → parks at slot 0 on the district surface
+    const cx = db.gx + db.gw / 2;
+    const cy = db.gy + db.gh / 2;
+    const roofPt = camera.project(cx, cy, db.gz);
+    const expectedSx = roofPt[0];
+    const expectedSy = roofPt[1] - 25;
+
+    const result = hitTestAgents(camera, [agent], [bFrom, bTo], expectedSx, expectedSy, 'L3', [db]);
+    expect(result).toBe(0);
   });
 });
