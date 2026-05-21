@@ -33,13 +33,21 @@ describe('hitTestAgents — hovering agent (targetId)', () => {
     const building = mkBuilding('b1', 0, 0);
     const agent = mkAgent({ targetId: 'b1' });
 
-    // Compute the expected screen position: roof centre, pushed upward
+    // Compute the expected screen position: roof centre pushed up then pushed
+    // outward from city centre by UFO_OUTWARD_PUSH=80 px (scale=1).
     const cx = building.gx + building.gw / 2;
     const cy = building.gy + building.gh / 2;
     const roofPt = camera.project(cx, cy, building.gz);
-    // agentScreenPos uses 30 * clamp(scale, 0.6, 1.5); scale=1 so offset is 30
-    const expectedSx = roofPt[0];
-    const expectedSy = roofPt[1] - 30;
+    // City centre is the average of building screen centres (gz=0 plane)
+    const cityPt = camera.project(cx, cy, 0);
+    const baseX = roofPt[0];
+    const baseY = roofPt[1] - 30; // 30 * clampedScale at scale=1
+    const dx = baseX - cityPt[0];
+    const dy = baseY - cityPt[1];
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const UFO_OUTWARD_PUSH = 80;
+    const expectedSx = baseX + (dx / len) * UFO_OUTWARD_PUSH;
+    const expectedSy = baseY + (dy / len) * UFO_OUTWARD_PUSH;
 
     const result = hitTestAgents(camera, [agent], [building], expectedSx, expectedSy);
     expect(result).toBe(0);

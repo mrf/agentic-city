@@ -73,8 +73,9 @@ export function hitTestBuildings(
 }
 
 // Mirror the constants from AgentRenderer so hit positions match draw positions exactly.
-const FLIGHT_ARC_H      = 80;
+const FLIGHT_ARC_H         = 80;
 const STAGING_SLOT_SPACING = 40;
+const UFO_OUTWARD_PUSH     = 80;
 
 /** Cubic bezier point at t — mirrors AnimationManager.bezier without the import. */
 function bezierPoint(
@@ -128,7 +129,13 @@ function agentScreenPos(
     const cx = target.gx + target.gw / 2;
     const cy = target.gy + target.gh / 2;
     const roofPt = camera.project(cx, cy, target.gz);
-    return [roofPt[0], roofPt[1] - 30 * clampedScale];
+    const baseX = roofPt[0];
+    const baseY = roofPt[1] - 30 * clampedScale;
+    const dx = baseX - cityCenter[0];
+    const dy = baseY - cityCenter[1];
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const push = UFO_OUTWARD_PUSH * clampedScale;
+    return [baseX + (dx / len) * push, baseY + (dy / len) * push];
   }
 
   // Staging agent — parked above city centre in a 3-column grid.
