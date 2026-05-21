@@ -17,6 +17,25 @@ import type { IsometricCamera } from '../canvas/IsometricCamera';
 
 type Direction = 'left' | 'right' | 'up' | 'down';
 
+/**
+ * After the agent list changes, find the new index of the previously-focused
+ * agent by identity (id), not by position. Returns the new index if the agent
+ * still exists, or null if it has been removed.
+ *
+ * Exported for unit testing only.
+ */
+export function sanitizeAgentIndex(
+  prevAgents: { id: string }[],
+  nextAgents: { id: string }[],
+  focusedIndex: number | null,
+): number | null {
+  if (focusedIndex === null) return null;
+  const prev = prevAgents[focusedIndex];
+  if (!prev) return null;
+  const newIndex = nextAgents.findIndex((a) => a.id === prev.id);
+  return newIndex === -1 ? null : newIndex;
+}
+
 const DIR_VECTORS: Record<Direction, [number, number]> = {
   left: [-1, 0],  // H — iso −x
   right: [1, 0],  // L — iso +x
@@ -180,6 +199,25 @@ export function useCityKeyboard(
       setCursor(null);
     }
   }, [buildings, cursorBuildingId, setCursor]);
+
+  // Sanitize focusedAgentIndex when the agent list changes. Track agents by
+  // identity (id) across renders so a departing agent does not silently hand
+  // off the selection ring to whichever agent now occupies the same index.
+  // Read focusedAgentIndex from stateRef to avoid re-running on every keyboard
+  // navigation cycle (only agent-list mutations should trigger this).
+  const prevAgentsRef = useRef(agents);
+  useEffect(() => {
+    const prev = prevAgentsRef.current;
+    prevAgentsRef.current = agents;
+    const currentIndex = stateRef.current.focusedAgentIndex;
+    const next = sanitizeAgentIndex(prev, agents, currentIndex);
+    if (next !== currentIndex) {
+      setFocusedAgentIndex(next);
+      if (next === null) {
+        setInspectedAgentId(null);
+      }
+    }
+  }, [agents, setFocusedAgentIndex, setInspectedAgentId]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
