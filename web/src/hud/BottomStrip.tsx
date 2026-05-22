@@ -83,6 +83,7 @@ export function BottomStrip(): JSX.Element {
   const showLabels = useUiStore((s) => s.showLabels);
   const showMinimap = useUiStore((s) => s.showMinimap);
   const highContrast = useUiStore((s) => s.highContrast);
+  const showCoverageHeatmap = useUiStore((s) => s.showCoverageHeatmap);
   const phase2 = useUiStore((s) => s.phase2);
   const lodLevel = useUiStore((s) => s.lodLevel);
 
@@ -100,6 +101,7 @@ export function BottomStrip(): JSX.Element {
       <Hint keys={['N']} label="labels" color={activeColor(showLabels)} />
       <Hint keys={['M']} label="minimap" color={activeColor(showMinimap)} />
       <Hint keys={['C']} label="contrast" color={activeColor(highContrast)} />
+      <Hint keys={['V']} label="heatmap" color={activeColor(showCoverageHeatmap)} />
       <Hint keys={['⇧L']} label="lod" color={activeColor(lodLevel === 'L2')} />
       <span style={S.sep}>·</span>
       <Hint keys={['W', 'A', 'S', 'D']} label="pan" />

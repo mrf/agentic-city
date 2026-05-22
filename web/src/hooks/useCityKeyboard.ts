@@ -158,6 +158,7 @@ export function useCityKeyboard(
   const toggleRoads = useUiStore((s) => s.toggleRoads);
   const toggleLabels = useUiStore((s) => s.toggleLabels);
   const toggleMinimap = useUiStore((s) => s.toggleMinimap);
+  const toggleCoverageHeatmap = useUiStore((s) => s.toggleCoverageHeatmap);
   const toggleShortcutOverlay = useUiStore((s) => s.toggleShortcutOverlay);
   const toggleHighContrast = useUiStore((s) => s.toggleHighContrast);
   const toggleLod = useUiStore((s) => s.toggleLod);
@@ -354,6 +355,7 @@ export function useCityKeyboard(
       if (e.key === 'n' || e.key === 'N') { toggleLabels(); e.preventDefault(); return; }
       if (e.key === 'm' || e.key === 'M') { toggleMinimap(); e.preventDefault(); return; }
       if (e.key === 'c' || e.key === 'C') { toggleHighContrast(); e.preventDefault(); return; }
+      if (e.key === 'v' || e.key === 'V') { toggleCoverageHeatmap(); e.preventDefault(); return; }
       // L (uppercase) — toggle LOD between file view (L2) and district view (L3)
       // Lowercase 'l' is reserved for vim-style right navigation
       if (e.key === 'L') { toggleLod(); e.preventDefault(); return; }
@@ -505,7 +507,7 @@ export function useCityKeyboard(
   }, [
     setCursor, selectBuilding, setCursorDistrict, setFocusZone,
     syncCamera, panByKey, zoomIn, zoomOut, resetZoom,
-    toggleRoads, toggleLabels, toggleMinimap,
+    toggleRoads, toggleLabels, toggleMinimap, toggleCoverageHeatmap,
     toggleShortcutOverlay, toggleHighContrast, toggleLod,
     setFocusedAgentIndex, setInspectedAgentId,
     openDispatch, openCommandPalette, toggleAlarm,

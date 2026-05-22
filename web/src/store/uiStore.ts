@@ -90,6 +90,7 @@ interface UiStore {
   showRoads: boolean;
   showLabels: boolean;
   showMinimap: boolean;
+  showCoverageHeatmap: boolean;
 
   // Overlays
   showShortcutOverlay: boolean;
@@ -120,6 +121,7 @@ interface UiStore {
   toggleRoads: () => void;
   toggleLabels: () => void;
   toggleMinimap: () => void;
+  toggleCoverageHeatmap: () => void;
   toggleShortcutOverlay: () => void;
   toggleHighContrast: () => void;
   /** Toggle between L2 (file view) and L3 (district view). */
@@ -155,6 +157,7 @@ export const useUiStore = create<UiStore>((set) => ({
   showRoads: false,
   showLabels: true,
   showMinimap: false,
+  showCoverageHeatmap: false,
 
   showShortcutOverlay: false,
   highContrast: false,
@@ -181,6 +184,7 @@ export const useUiStore = create<UiStore>((set) => ({
   toggleRoads: () => set((s) => ({ showRoads: !s.showRoads })),
   toggleLabels: () => set((s) => ({ showLabels: !s.showLabels })),
   toggleMinimap: () => set((s) => ({ showMinimap: !s.showMinimap })),
+  toggleCoverageHeatmap: () => set((s) => ({ showCoverageHeatmap: !s.showCoverageHeatmap })),
   toggleShortcutOverlay: () => set((s) => ({ showShortcutOverlay: !s.showShortcutOverlay })),
   toggleHighContrast: () => set((s) => ({ highContrast: !s.highContrast })),
   toggleLod: () => set((s) => {

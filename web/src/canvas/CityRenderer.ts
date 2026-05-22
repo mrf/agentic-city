@@ -11,6 +11,7 @@
 
 import { IsometricCamera } from './IsometricCamera';
 import { drawDistricts } from './DistrictRenderer';
+import { drawCoverageHeatmap } from './CoverageHeatmapRenderer';
 import {
   drawBuildings,
   drawDistrictBuildings,
@@ -52,6 +53,7 @@ export class CityRenderer {
   private hasFitted = false;
   showLabels = true;
   showRoads = false;
+  showCoverageHeatmap = false;
   cursorBuildingId: string | null = null;
   cursorDistrictId: string | null = null;
   selectedBuildingId: string | null = null;
@@ -155,7 +157,12 @@ export class CityRenderer {
     // 3. District outlines (back-to-front by gx+gy)
     drawDistricts(ctx, this.camera, this.city.districts);
 
-    // 3b. Lightning paths from error origin to affected dependencies
+    // 3b. Coverage heatmap — semi-transparent fill over each district polygon
+    if (this.showCoverageHeatmap) {
+      drawCoverageHeatmap(ctx, this.camera, this.city.districts, this.districtBuildings);
+    }
+
+    // 3d. Lightning paths from error origin to affected dependencies
     const now = performance.now();
     drawLightningPaths(ctx, this.camera, this.city.buildings, this.city.roads, now);
 

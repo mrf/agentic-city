@@ -22,6 +22,7 @@ export function App(): JSX.Element {
   const city = useCityStore((s) => s.city);
   const showLabels = useUiStore((s) => s.showLabels);
   const showRoads = useUiStore((s) => s.showRoads);
+  const showCoverageHeatmap = useUiStore((s) => s.showCoverageHeatmap);
   const lodLevel = useUiStore((s) => s.lodLevel);
   const cursorBuildingId = useUiStore((s) => s.cursorBuildingId);
   const cursorDistrictId = useUiStore((s) => s.cursorDistrictId);
@@ -204,6 +205,12 @@ export function App(): JSX.Element {
       rendererRef.current.showRoads = showRoads;
     }
   }, [showRoads]);
+
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.showCoverageHeatmap = showCoverageHeatmap;
+    }
+  }, [showCoverageHeatmap]);
 
   useEffect(() => {
     if (rendererRef.current) {
