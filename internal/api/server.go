@@ -18,6 +18,11 @@ type StateUpdater interface {
 	Update(fn func(model.CityState) model.CityState)
 }
 
+// HistoryProvider abstracts coverage history access for the API layer.
+type HistoryProvider interface {
+	Snapshots() []model.CoverageSnapshot
+}
+
 // ActivitySink can append activity events and notify connected clients.
 type ActivitySink interface {
 	AddActivity(ev model.ActivityEvent)
@@ -32,6 +37,7 @@ type Notifier interface {
 type Server struct {
 	state     StateProvider
 	updater   StateUpdater
+	history   HistoryProvider
 	wsHandler http.HandlerFunc
 	spawner   *agents.Spawner
 	sink      ActivitySink
@@ -86,6 +92,12 @@ func (s *Server) WithWSHandler(h http.HandlerFunc) *Server {
 	return s
 }
 
+// WithHistory enables the GET /api/coverage/history endpoint.
+func (s *Server) WithHistory(h HistoryProvider) *Server {
+	s.history = h
+	return s
+}
+
 // WithSpawner enables the POST /api/dispatch endpoint.
 func (s *Server) WithSpawner(sp *agents.Spawner, sink ActivitySink, notifier Notifier) *Server {
 	s.spawner = sp
@@ -113,6 +125,9 @@ func (s *Server) WithStateUpdater(u StateUpdater, sink ActivitySink, notifier No
 func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/state", s.handleGetState)
 	mux.HandleFunc("GET /api/buildings/{id...}", s.handleGetBuilding)
+	if s.history != nil {
+		mux.HandleFunc("GET /api/coverage/history", s.handleGetCoverageHistory)
+	}
 	if s.spawner != nil {
 		mux.HandleFunc("POST /api/dispatch", s.handleDispatch)
 	}

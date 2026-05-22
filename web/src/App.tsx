@@ -10,6 +10,7 @@ import { startWs, stopWs } from './store/wsMiddleware';
 import { HudOverlay } from './hud/HudOverlay';
 import { ScanlineOverlay } from './hud/ScanlineOverlay';
 import { useSessionPersist } from './hooks/useSessionPersist';
+import { useCoverageHistory } from './hooks/useCoverageHistory';
 import { sol } from './theme/colors';
 
 /** Minimum pixel movement before a mousedown is considered a drag (not a click). */
@@ -72,6 +73,9 @@ export function App(): JSX.Element {
 
   // WebSocket connection lifecycle — connect on mount, disconnect on unmount
   useWebSocket();
+
+  // Poll coverage history for trend indicators
+  useCoverageHistory();
 
   // Keyboard navigation: cursor, selection, camera, toggles
   useCityKeyboard(rendererRef);

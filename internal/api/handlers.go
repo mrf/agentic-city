@@ -89,6 +89,13 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleGetCoverageHistory returns all stored coverage snapshots in
+// chronological order (oldest first).
+func (s *Server) handleGetCoverageHistory(w http.ResponseWriter, r *http.Request) {
+	snaps := s.history.Snapshots()
+	s.writeJSON(w, r, map[string]any{"snapshots": snaps})
+}
+
 // handleDispatch spawns a new agent session (worktree + tmux + claude).
 func (s *Server) handleDispatch(w http.ResponseWriter, r *http.Request) {
 	var req agents.SpawnRequest

@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useCityStore } from '../store/cityStore';
+import { useCoverageHistoryStore, computeAggregateDelta } from '../store/coverageHistoryStore';
+import { DeltaIndicator } from './DeltaIndicator';
 import { sol, ciColor, coverageColor, hudBase, TOP_BAR_H } from './palette';
 
 const S: Record<string, CSSProperties> = {
@@ -62,6 +64,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 export function TopBar(): JSX.Element {
   const repoInfo = useCityStore((s) => s.city.repoInfo);
   const stats = useCityStore((s) => s.city.stats);
+  const snapshots = useCoverageHistoryStore((s) => s.snapshots);
 
   const sha = repoInfo.headCommit ? repoInfo.headCommit.slice(0, 7) : '-------';
   const cov = stats.coverage >= 0 ? `${Math.round(stats.coverage * 100)}%` : '—';
@@ -69,6 +72,7 @@ export function TopBar(): JSX.Element {
     stats.testsTotal > 0
       ? `${stats.testsPassing}/${stats.testsTotal}`
       : '—';
+  const covDelta = computeAggregateDelta(snapshots);
 
   return (
     <header style={S.bar}>
@@ -90,7 +94,11 @@ export function TopBar(): JSX.Element {
         <span style={S.sep}>·</span>
         <Stat label="LOC " value={stats.totalLoc.toLocaleString()} />
         <span style={S.sep}>·</span>
-        <Stat label="cov " value={cov} color={coverageColor(stats.coverage)} />
+        <span aria-label={`cov ${cov}`}>
+          <span style={S.label} aria-hidden="true">cov </span>
+          <span style={{ color: coverageColor(stats.coverage) }} aria-hidden="true">{cov}</span>
+          <DeltaIndicator delta={covDelta} />
+        </span>
         <span style={S.sep}>·</span>
         <Stat label="tests " value={tests} color={stats.testsPassing === stats.testsTotal && stats.testsTotal > 0 ? sol.green : sol.base1} />
         {stats.openPrs > 0 && (

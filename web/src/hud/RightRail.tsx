@@ -1,5 +1,7 @@
 import { useMemo, type CSSProperties } from 'react';
 import { useCityStore, selectDistrictBuildings } from '../store/cityStore';
+import { useCoverageHistoryStore, computeAggregateDelta, computeFileDelta } from '../store/coverageHistoryStore';
+import { DeltaIndicator } from './DeltaIndicator';
 import { useUiStore } from '../store/uiStore';
 import type { ActivityEvent, Building, Agent, DistrictBuilding } from '../store/cityStore';
 import { sol, langColor, coverageColor, ciColor, tierColor, severityColor, hudBase, TOP_BAR_H, BOTTOM_STRIP_H } from './palette';
@@ -116,6 +118,8 @@ const S: Record<string, CSSProperties> = {
 
 function BuildingPanel({ building }: { building: Building }): JSX.Element {
   const cov = building.coverage >= 0 ? `${Math.round(building.coverage * 100)}%` : '—';
+  const snapshots = useCoverageHistoryStore((s) => s.snapshots);
+  const delta = computeFileDelta(snapshots, building.id);
   return (
     <section style={S.section} aria-label="Selected file">
       <div style={S.sectionHeader}>selected</div>
@@ -133,7 +137,10 @@ function BuildingPanel({ building }: { building: Building }): JSX.Element {
       </div>
       <div style={S.row}>
         <span style={S.rowLabel}>cov</span>
-        <span style={{ ...S.rowValue, color: coverageColor(building.coverage) }}>{cov}</span>
+        <span style={{ ...S.rowValue, color: coverageColor(building.coverage) }}>
+          {cov}
+          <DeltaIndicator delta={delta} />
+        </span>
       </div>
       {building.coverageWarn && (
         <div style={S.row}>
@@ -201,6 +208,8 @@ function ThresholdAlertsPanel({
 function DistrictBuildingPanel({ district }: { district: DistrictBuilding }): JSX.Element {
   const cov = district.coverage >= 0 ? `${Math.round(district.coverage * 100)}%` : '—';
   const statuses = Object.entries(district.statusBreakdown).sort((a, b) => b[1] - a[1]);
+  const snapshots = useCoverageHistoryStore((s) => s.snapshots);
+  const delta = computeAggregateDelta(snapshots);
   return (
     <section style={S.section} aria-label="District">
       <div style={S.sectionHeader}>district</div>
@@ -218,7 +227,10 @@ function DistrictBuildingPanel({ district }: { district: DistrictBuilding }): JS
       </div>
       <div style={S.row}>
         <span style={S.rowLabel}>cov</span>
-        <span style={{ ...S.rowValue, color: coverageColor(district.coverage) }}>{cov}</span>
+        <span style={{ ...S.rowValue, color: coverageColor(district.coverage) }}>
+          {cov}
+          <DeltaIndicator delta={delta} />
+        </span>
       </div>
       {statuses.map(([status, count]) => (
         <div key={status} style={S.row}>
@@ -296,7 +308,9 @@ function ActivityRow({ event }: { event: ActivityEvent }): JSX.Element {
 
 function StatsPanel(): JSX.Element {
   const stats = useCityStore((s) => s.city.stats);
+  const snapshots = useCoverageHistoryStore((s) => s.snapshots);
   const cov = stats.coverage >= 0 ? `${Math.round(stats.coverage * 100)}%` : '—';
+  const delta = computeAggregateDelta(snapshots);
   return (
     <section style={S.section} aria-label="Stats">
       <div style={S.sectionHeader}>stats</div>
@@ -311,7 +325,10 @@ function StatsPanel(): JSX.Element {
         </div>
         <div style={S.row}>
           <span style={S.rowLabel}>coverage</span>
-          <span style={{ ...S.rowValue, color: coverageColor(stats.coverage) }}>{cov}</span>
+          <span style={{ ...S.rowValue, color: coverageColor(stats.coverage) }}>
+            {cov}
+            <DeltaIndicator delta={delta} />
+          </span>
         </div>
         {stats.openPrs > 0 && (
           <div style={S.row}>

@@ -69,6 +69,8 @@ func main() {
 	h := hub.New(cityState)
 	go h.Run(ctx)
 
+	covHistory := model.NewCoverageHistory(model.HistoryCap)
+
 	if *demo {
 		go runDemoTicker(ctx, cityState, h)
 	}
@@ -82,7 +84,7 @@ func main() {
 				slog.Error("metrics watcher: start failed", "err", err)
 				mw.Stop()
 			} else {
-				go runMetricsWatcher(ctx, mw, cityState, h)
+				go runMetricsWatcher(ctx, mw, cityState, h, covHistory)
 			}
 		}
 	}
@@ -99,7 +101,8 @@ func main() {
 	apiServer := api.New(cityState).
 		WithDevMode(devMode).
 		WithWSHandler(h.ServeWS).
-		WithStateUpdater(cityState, cityState, h)
+		WithStateUpdater(cityState, cityState, h).
+		WithHistory(covHistory)
 	apiServer.Register(mux)
 
 	distFS, err := fs.Sub(agentcityweb.Dist, "dist")
@@ -579,9 +582,9 @@ func autoDetectMetricsFiles(repoPath string) (coverageFiles, testResultFiles []s
 }
 
 // runMetricsWatcher consumes MetricsWatcher updates, applies coverage and test
-// status to all buildings, marks threshold warnings, and emits activity events
-// for any buildings that newly drop below threshold.
-func runMetricsWatcher(ctx context.Context, mw *repo.MetricsWatcher, state *hub.State, h *hub.Hub) {
+// status to all buildings, marks threshold warnings, emits activity events
+// for threshold crossings, and records coverage history if hist is non-nil.
+func runMetricsWatcher(ctx context.Context, mw *repo.MetricsWatcher, state *hub.State, h *hub.Hub, hist *model.CoverageHistory) {
 	defer mw.Stop()
 	for {
 		select {
@@ -609,6 +612,9 @@ func runMetricsWatcher(ctx context.Context, mw *repo.MetricsWatcher, state *hub.
 					Severity:  "warn",
 				})
 				slog.Info("coverage threshold crossed", "file", id)
+			}
+			if hist != nil {
+				hist.Record(model.SnapshotFromState(state.GetState()))
 			}
 			if h != nil {
 				h.Notify()
