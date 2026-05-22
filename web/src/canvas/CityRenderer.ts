@@ -18,6 +18,7 @@ import {
   drawCursorHighlight,
   drawHoverHighlight,
   drawOcclusionFadeOverlay,
+  drawL4CoverageRing,
 } from './BuildingRenderer';
 import { findOccluders } from './OcclusionDetector';
 import { drawRoads } from './RoadRenderer';
@@ -199,6 +200,10 @@ export class CityRenderer {
       this.compositeOffscreen(toAlpha,   (off) => this.drawBuildingLayer(off, toLevel, occluderIds, now));
     } else if (this._lodLevel === 'L3') {
       drawDistrictBuildings(ctx, this.camera, this.districtBuildings, this.showLabels, now);
+    } else if (this._lodLevel === 'L4') {
+      // District buildings appear as tiny silhouettes at L4 zoom — no labels at this scale.
+      drawDistrictBuildings(ctx, this.camera, this.districtBuildings, false, now);
+      drawL4CoverageRing(ctx, w, h, this.city.stats.coverage);
     } else {
       drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, now, occluderIds);
       drawOcclusionFadeOverlay(
@@ -234,8 +239,8 @@ export class CityRenderer {
       }
     }
 
-    // 6. Hover highlight — suppressed during transition to avoid visual confusion.
-    if (!transitioning && this._lodLevel !== 'L3'
+    // 6. Hover highlight — only at L2 (individual buildings); suppressed during transition.
+    if (!transitioning && this._lodLevel === 'L2'
         && this.hoveredBuildingId && this.hoveredBuildingId !== this.cursorBuildingId) {
       const hoveredBuilding = this.city.buildings.find(
         (b) => b.id === this.hoveredBuildingId,
@@ -245,14 +250,14 @@ export class CityRenderer {
       }
     }
 
-    // 7. Cursor highlight — suppressed during transition; snaps to new LOD when done.
+    // 7. Cursor highlight — suppressed during transition and at L4; snaps to new LOD when done.
     if (!transitioning) {
       if (this._lodLevel === 'L3') {
         const target = this.cursorDistrictId
           ? this.districtBuildings.find((d) => d.id === this.cursorDistrictId)
           : undefined;
         if (target) drawCursorHighlight(ctx, this.camera, target);
-      } else {
+      } else if (this._lodLevel === 'L2') {
         const target = this.cursorBuildingId
           ? this.city.buildings.find((b) => b.id === this.cursorBuildingId)
           : undefined;
@@ -296,6 +301,13 @@ export class CityRenderer {
     if (!this.city) return;
     if (level === 'L3') {
       drawDistrictBuildings(ctx, this.camera, this.districtBuildings, this.showLabels, now);
+    } else if (level === 'L4') {
+      // At L4 district buildings appear as tiny silhouettes — no labels at this scale.
+      drawDistrictBuildings(ctx, this.camera, this.districtBuildings, false, now);
+      const dpr = window.devicePixelRatio || 1;
+      const w = ctx.canvas.width / dpr;
+      const h = ctx.canvas.height / dpr;
+      drawL4CoverageRing(ctx, w, h, this.city.stats.coverage);
     } else {
       drawBuildings(ctx, this.camera, this.city.buildings, this.showLabels, now, occluderIds);
       drawOcclusionFadeOverlay(

@@ -821,6 +821,26 @@ function districtStatusColor(status: string): string {
 }
 
 /**
+ * Coverage fraction (0–1) → color for district tint.
+ * Matches the same tier thresholds as window dots at L2.
+ * Exported for unit testing.
+ */
+export function districtCoverageColor(coverage: number): string {
+  if (coverage >= 0.8) return SD.green;
+  if (coverage >= 0.5) return SD.yellow;
+  return SD.red;
+}
+
+/**
+ * Format coverage as a percent string ("72%") or empty string for unknown (-1).
+ * Exported for unit testing.
+ */
+export function formatCoverage(coverage: number): string {
+  if (coverage < 0) return '';
+  return `${Math.round(coverage * 100)}%`;
+}
+
+/**
  * Draw all district-buildings sorted back-to-front.
  * Called by CityRenderer when lodLevel === 'L3'.
  */
@@ -945,20 +965,35 @@ function drawDistrictBuilding(
   ctx.lineWidth = 1.1;
   ctx.stroke();
 
-  // 6. Red flash fill for err districts
+  // 6. Coverage tint on roof — independent signal from status border color.
+  //    Green/yellow/red fill at low alpha shows aggregate test coverage at a glance.
+  if (d.coverage >= 0) {
+    const covColor = districtCoverageColor(d.coverage);
+    const [cR, cG, cB] = hexToRgb(covColor);
+    ctx.fillStyle = `rgba(${cR},${cG},${cB},0.22)`;
+    ctx.beginPath();
+    ctx.moveTo(A2[0], A2[1]);
+    ctx.lineTo(B2[0], B2[1]);
+    ctx.lineTo(C2[0], C2[1]);
+    ctx.lineTo(D2[0], D2[1]);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 7. Red flash fill for err districts
   if (d.status === 'err') {
     drawAlarmFlash(ctx, A, B, D, A2, B2, C2, D2, time);
   }
 
-  // 7. Hatched vertical lines on visible side faces (representing combined files)
+  // 8. Hatched vertical lines on visible side faces (representing combined files)
   drawDistrictHatch(ctx, camera, d, borderColor);
 
-  // 8. Status indicator dot — blinking for warn/err (sketch-C spec)
+  // 9. Status indicator dot — blinking for warn/err (sketch-C spec)
   if (d.status !== 'ok') {
     drawDistrictStatusDot(ctx, D2, borderColor, d.status, time);
   }
 
-  // 9. Bold label with file count badge
+  // 10. Bold label with file count badge and coverage percent
   if (showLabels) {
     drawDistrictLabel(ctx, d, D2, borderColor);
   }
@@ -1051,7 +1086,7 @@ function drawDistrictStatusDot(
 }
 
 /**
- * Draw a bold district label with a file-count badge.
+ * Draw a bold district label with a file-count badge and coverage percent.
  * Anchored to D2 (bottom-left roof vertex), same position as file-building labels.
  * Sketch-C: "District label in bold with file count badge".
  */
@@ -1063,15 +1098,18 @@ function drawDistrictLabel(
 ): void {
   const namePart  = d.label;
   const badgePart = ` ×${d.fileCount}`;
+  const covStr    = formatCoverage(d.coverage);
+  const covPart   = covStr ? ` · ${covStr}` : '';
 
   ctx.font = `bold ${FONT_SIZE.label}px ${FONT_FAMILY}`;
   const nameW  = ctx.measureText(namePart).width;
   ctx.font = `${FONT_SIZE.label}px ${FONT_FAMILY}`;
   const badgeW = ctx.measureText(badgePart).width;
+  const covW   = ctx.measureText(covPart).width;
 
-  const padX  = 4;
-  const padY  = 3;
-  const plateW = nameW + badgeW + padX * 2;
+  const padX   = 4;
+  const padY   = 3;
+  const plateW = nameW + badgeW + covW + padX * 2;
   const plateH = 12 + padY;
   const plateX = bottomLeft[0] - plateW;
   const plateY = bottomLeft[1] - plateH / 2;
@@ -1097,5 +1135,109 @@ function drawDistrictLabel(
   ctx.font = `${FONT_SIZE.label}px ${FONT_FAMILY}`;
   ctx.globalAlpha = 0.65;
   ctx.fillText(badgePart, textX + nameW, textY);
+
+  // Coverage percent in coverage tier color
+  if (covStr) {
+    const covColor = districtCoverageColor(d.coverage);
+    ctx.fillStyle = covColor;
+    ctx.globalAlpha = 0.85;
+    ctx.fillText(covPart, textX + nameW + badgeW, textY);
+  }
+
   ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------------------
+// L4 codebase-level coverage ring
+// ---------------------------------------------------------------------------
+
+/**
+ * Draw a centered coverage ring for the L4 (codebase) view.
+ *
+ * The ring is a screen-space HUD overlay — position is in CSS pixels, not
+ * grid space — so it remains centered and readable regardless of camera pan.
+ *
+ * Visual anatomy:
+ *  - Dim background track circle
+ *  - Coverage arc (green/yellow/red) sweeping clockwise from the top
+ *  - Percentage text inside the ring
+ *  - "COVERAGE" label below
+ *
+ * @param ctx   The canvas 2D context (DPR transform already applied).
+ * @param w     CSS-pixel width of the viewport.
+ * @param h     CSS-pixel height of the viewport.
+ * @param coverage  0–1 fraction or -1 for unknown.
+ */
+export function drawL4CoverageRing(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  coverage: number,
+): void {
+  const cx = w / 2;
+  const cy = h / 2;
+  const r  = Math.min(w, h) * 0.12;
+  const lw = Math.max(3, r * 0.14);
+
+  ctx.save();
+
+  // Dark backing disc so the ring reads over the zoomed-out city.
+  ctx.fillStyle = 'rgba(0,7,13,0.72)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + lw + 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Dim background track
+  ctx.strokeStyle = SD.base01;
+  ctx.lineWidth = lw;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  if (coverage >= 0) {
+    const covColor = districtCoverageColor(coverage);
+    const [cR, cG, cB] = hexToRgb(covColor);
+
+    // Coverage arc (clockwise from top = -π/2)
+    ctx.strokeStyle = `rgb(${cR},${cG},${cB})`;
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.9;
+    ctx.shadowColor = covColor;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + coverage * Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Percentage text inside ring
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = covColor;
+    ctx.font = `bold ${Math.round(r * 0.55)}px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.round(coverage * 100)}%`, cx, cy);
+
+    // "COVERAGE" label below ring
+    ctx.fillStyle = SD.base1;
+    ctx.font = `${Math.round(r * 0.22)}px ${FONT_FAMILY}`;
+    ctx.globalAlpha = 0.7;
+    ctx.fillText('COVERAGE', cx, cy + r + lw + 10);
+  } else {
+    // Unknown coverage
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = SD.base00;
+    ctx.font = `bold ${Math.round(r * 0.55)}px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('—', cx, cy);
+
+    ctx.fillStyle = SD.base01;
+    ctx.font = `${Math.round(r * 0.22)}px ${FONT_FAMILY}`;
+    ctx.globalAlpha = 0.65;
+    ctx.fillText('COVERAGE UNKNOWN', cx, cy + r + lw + 10);
+  }
+
+  ctx.restore();
 }
