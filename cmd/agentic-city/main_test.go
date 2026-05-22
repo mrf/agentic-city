@@ -136,7 +136,7 @@ func TestRunMetricsWatcher_ShutdownOnContextCancel(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runMetricsWatcher(ctx, mw, state, nil)
+		runMetricsWatcher(ctx, mw, state, nil, nil)
 	}()
 
 	cancel()
@@ -158,7 +158,7 @@ func TestRunMetricsWatcher_AppliesUpdatesToState(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runMetricsWatcher(ctx, mw, state, nil)
+		runMetricsWatcher(ctx, mw, state, nil, nil)
 	}()
 
 	mw.Updates <- repo.MetricsSource{
@@ -205,7 +205,7 @@ func TestRunMetricsWatcher_NotifiesHub(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runMetricsWatcher(ctx, mw, state, h)
+		runMetricsWatcher(ctx, mw, state, h, nil)
 	}()
 
 	mw.Updates <- repo.MetricsSource{
@@ -228,7 +228,7 @@ func TestRunMetricsWatcher_StopsOnClosedChannel(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runMetricsWatcher(ctx, mw, state, nil)
+		runMetricsWatcher(ctx, mw, state, nil, nil)
 	}()
 
 	close(mw.Updates)
