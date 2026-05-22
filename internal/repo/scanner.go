@@ -113,6 +113,47 @@ var extensionToLanguage = map[string]string{
 	".lua":    "lua",
 	".r":      "r",
 	".jl":     "jl",
+	".env":    "env",
+	".txt":    "txt",
+	".lock":   "lock",
+	".gradle": "gradle",
+	".groovy": "groovy",
+	".hcl":    "hcl",
+	".nix":    "nix",
+	".zig":    "zig",
+	".dart":   "dart",
+	".ex":     "elixir",
+	".exs":    "elixir",
+	".erl":    "erlang",
+	".hrl":    "erlang",
+	".clj":    "clojure",
+	".cljs":   "clojure",
+	".elm":    "elm",
+	".hs":     "haskell",
+	".ml":     "ocaml",
+	".mli":    "ocaml",
+	".fs":     "fsharp",
+	".fsx":    "fsharp",
+	".php":    "php",
+	".pl":     "perl",
+	".pm":     "perl",
+	".ps1":      "powershell",
+	".psm1":     "powershell",
+	".gitignore": "gitignore",
+	".dockerignore": "gitignore",
+}
+
+// filenameToLanguage maps bare filenames (no extension) to language identifiers.
+// Used for files like Dockerfile or Makefile whose full basename is the identifier.
+var filenameToLanguage = map[string]string{
+	"Dockerfile":  "dockerfile",
+	"Makefile":    "makefile",
+	"Justfile":    "makefile",
+	"Rakefile":    "ruby",
+	"Gemfile":     "ruby",
+	"Podfile":     "ruby",
+	"Vagrantfile": "ruby",
+	"Brewfile":    "ruby",
 }
 
 // ScanRepo opens the git repository at repoPath, walks its HEAD tree, and
@@ -360,6 +401,9 @@ func countLinesAndSniff(r io.Reader) (loc int, binary bool) {
 // lowercased extension, and a line count. Layout fields are left at zero.
 func newBuilding(relPath, ext string, loc int) model.Building {
 	lang := extensionToLanguage[ext]
+	if lang == "" && ext == "" {
+		lang = filenameToLanguage[path.Base(relPath)]
+	}
 	if lang == "" {
 		lang = "unknown"
 	}
