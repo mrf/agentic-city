@@ -39,6 +39,13 @@ export function computeLodLevel(zoom: number, current: LodLevel): LodLevel {
   }
 }
 
+export interface CoverageDropSuggestion {
+  /** Building IDs whose coverage decreased in the last state update. */
+  affectedFileIds: string[];
+  /** Unix timestamp (ms) when the regression was detected. */
+  triggeredAt: number;
+}
+
 export type DispatchStep = 1 | 2 | 3;
 
 export type DispatchRole =
@@ -111,6 +118,13 @@ interface UiStore {
   // Phase 2: Alarm
   alarmActive: boolean;
 
+  // Coverage drop suggestion
+  coverageDropSuggestion: CoverageDropSuggestion | null;
+  setCoverageDropSuggestion: (s: CoverageDropSuggestion | null) => void;
+  dismissCoverageDropSuggestion: () => void;
+  /** Open the dispatch wizard pre-populated for a coverage regression. */
+  openDispatchForCoverage: (fileIds: string[]) => void;
+
   selectBuilding: (id: string | null) => void;
   setCursor: (id: string | null) => void;
   selectDistrict: (id: string | null) => void;
@@ -173,6 +187,7 @@ export const useUiStore = create<UiStore>((set) => ({
   dispatchRole: null,
   commandPaletteOpen: false,
   alarmActive: false,
+  coverageDropSuggestion: null,
 
   selectBuilding: (id) => set({ selectedBuildingId: id }),
   setCursor: (id) => set({ cursorBuildingId: id }),
@@ -228,6 +243,17 @@ export const useUiStore = create<UiStore>((set) => ({
     commandPaletteOpen: false,
     focusZone: s.dispatchMode ? 'modal' : 'city',
   })),
+  setCoverageDropSuggestion: (s) => set({ coverageDropSuggestion: s }),
+  dismissCoverageDropSuggestion: () => set({ coverageDropSuggestion: null }),
+  openDispatchForCoverage: (fileIds) => set({
+    dispatchMode: true,
+    dispatchStep: 3,
+    dispatchScope: fileIds,
+    dispatchRole: 'add-test',
+    focusZone: 'modal',
+    commandPaletteOpen: false,
+    coverageDropSuggestion: null,
+  }),
   toggleAlarm: () => set((s) => ({
     alarmActive: !s.alarmActive,
     focusZone: s.alarmActive ? 'city' : 'modal',

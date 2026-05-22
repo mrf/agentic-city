@@ -8,10 +8,13 @@ import { Minimap } from './Minimap';
 import { DispatchWizard } from '../orchestration/DispatchWizard';
 import { CommandPalette } from '../orchestration/CommandPalette';
 import { AlarmOverlay } from '../orchestration/AlarmOverlay';
+import { CoverageDropToast } from '../orchestration/CoverageDropToast';
+import { useCoverageWatcher } from '../hooks/useCoverageWatcher';
 
 export function HudOverlay(): JSX.Element {
   const highContrast = useUiStore((s) => s.highContrast);
   const alarmActive = useUiStore((s) => s.alarmActive);
+  useCoverageWatcher();
 
   return (
     <>
@@ -33,6 +36,7 @@ export function HudOverlay(): JSX.Element {
       <AlarmOverlay />
       <DispatchWizard />
       <CommandPalette />
+      <CoverageDropToast />
     </>
   );
 }
