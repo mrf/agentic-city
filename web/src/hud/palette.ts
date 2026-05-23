@@ -89,7 +89,8 @@ export function langColor(lang: string): string {
     case 'md': return sol.green;
     case 'html': return sol.orange;
     case 'java': return sol.red;
-    case 'rb': return sol.red;
+    case 'rb':
+    case 'ruby': return sol.red;
     case 'sh': return sol.base01;
     case 'yaml': return sol.base1;
     case 'json': return sol.base1;
