@@ -24,6 +24,7 @@ const S: Record<string, CSSProperties> = {
     fontSize: 10,
     color: sol.base00,
     zIndex: 100,
+    pointerEvents: 'auto',
   },
   key: {
     display: 'inline-block',
@@ -65,9 +66,15 @@ function Key({ k }: { k: string }): JSX.Element {
   return <span style={S.key}>{k}</span>;
 }
 
-function Hint({ keys, label, color }: { keys: string[]; label: string; color?: string }): JSX.Element {
+function Hint({ keys, label, color, onClick }: { keys: string[]; label: string; color?: string; onClick?: () => void }): JSX.Element {
   return (
-    <span style={S.hint}>
+    <span
+      style={{ ...S.hint, ...(onClick && { pointerEvents: 'auto', cursor: 'pointer' }) }}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       {keys.map((k, i) => (
         <Key key={i} k={k} />
       ))}
@@ -87,6 +94,13 @@ export function BottomStrip(): JSX.Element {
   const phase2 = useUiStore((s) => s.phase2);
   const lodLevel = useUiStore((s) => s.lodLevel);
 
+  const toggleRoads = useUiStore((s) => s.toggleRoads);
+  const toggleLabels = useUiStore((s) => s.toggleLabels);
+  const toggleMinimap = useUiStore((s) => s.toggleMinimap);
+  const toggleHighContrast = useUiStore((s) => s.toggleHighContrast);
+  const toggleCoverageHeatmap = useUiStore((s) => s.toggleCoverageHeatmap);
+  const toggleLod = useUiStore((s) => s.toggleLod);
+
   const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null;
 
   return (
@@ -97,12 +111,12 @@ export function BottomStrip(): JSX.Element {
       <span style={S.sep}>·</span>
       <Hint keys={['Esc']} label="city" />
       <span style={S.sep}>·</span>
-      <Hint keys={['R']} label="roads" color={activeColor(showRoads)} />
-      <Hint keys={['N']} label="labels" color={activeColor(showLabels)} />
-      <Hint keys={['M']} label="minimap" color={activeColor(showMinimap)} />
-      <Hint keys={['C']} label="contrast" color={activeColor(highContrast)} />
-      <Hint keys={['V']} label="heatmap" color={activeColor(showCoverageHeatmap)} />
-      <Hint keys={['⇧L']} label="lod" color={activeColor(lodLevel === 'L2')} />
+      <Hint keys={['R']} label="roads" color={activeColor(showRoads)} onClick={toggleRoads} />
+      <Hint keys={['N']} label="labels" color={activeColor(showLabels)} onClick={toggleLabels} />
+      <Hint keys={['M']} label="minimap" color={activeColor(showMinimap)} onClick={toggleMinimap} />
+      <Hint keys={['C']} label="contrast" color={activeColor(highContrast)} onClick={toggleHighContrast} />
+      <Hint keys={['V']} label="heatmap" color={activeColor(showCoverageHeatmap)} onClick={toggleCoverageHeatmap} />
+      <Hint keys={['⇧L']} label="lod" color={activeColor(lodLevel === 'L2')} onClick={toggleLod} />
       <span style={S.sep}>·</span>
       <Hint keys={['W', 'A', 'S', 'D']} label="pan" />
       <Hint keys={['+', '−']} label="zoom" />
