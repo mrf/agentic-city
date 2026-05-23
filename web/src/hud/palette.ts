@@ -114,6 +114,26 @@ export function langColor(lang: string): string {
     case 'nix': return sol.blue;
     case 'svelte': return sol.orange;
     case 'vue': return sol.green;
+    case 'ruby': return sol.red;
+    case 'erlang': return sol.red;
+    case 'clojure': return sol.green;
+    case 'elm': return sol.cyan;
+    case 'ocaml': return sol.orange;
+    case 'fsharp': return sol.cyan;
+    case 'perl': return sol.blue;
+    case 'r': return sol.blue;
+    case 'jl': return sol.violet;
+    case 'groovy': return sol.blue;
+    case 'powershell': return sol.blue;
+    case 'xml': return sol.orange;
+    case 'hcl': return sol.violet;
+    case 'gradle': return sol.green;
+    case 'mod': return sol.cyan;
+    case 'sum': return sol.base1;
+    case 'env': return sol.base1;
+    case 'txt': return sol.base1;
+    case 'lock': return sol.base01;
+    case 'gitignore': return sol.base01;
     default: return sol.base0;
   }
 }
