@@ -131,7 +131,7 @@ func TestDetectThresholdCrossings(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "new building below threshold",
+			name:   "new building below threshold",
 			before: []model.Building{},
 			after: []model.Building{
 				{ID: "a.go", CoverageWarn: true},
