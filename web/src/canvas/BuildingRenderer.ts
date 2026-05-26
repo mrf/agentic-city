@@ -13,6 +13,7 @@ import { IsometricCamera } from './IsometricCamera';
 import type { Building, DistrictBuilding } from '../store/cityStore';
 import { sol as SD } from '../theme/colors';
 import { FONT_FAMILY, FONT_SIZE } from '../theme/typography';
+import { findPassiveOccluders } from './OcclusionDetector';
 
 /**
  * Opacity applied to buildings that visually occlude the cursor/selected building.
@@ -22,9 +23,40 @@ const OCCLUDER_ALPHA = 0.22;
 
 /**
  * Opacity of the ghost drawn over an occluding building for the always-on depth fade.
- * The back building's geometry shows through at this alpha in the region it is hidden.
+ * Low value — just a faint hint that a building exists behind the foreground one.
+ * The primary depth cue is PASSIVE_OCCLUSION_ALPHA applied in drawBuildings.
  */
-const OCCLUSION_FADE_ALPHA = 0.7;
+const OCCLUSION_FADE_ALPHA = 0.18;
+
+/**
+ * Opacity for buildings that are partially behind taller foreground buildings.
+ * Their visible portions appear slightly dimmed to signal they are farther back.
+ */
+const PASSIVE_OCCLUSION_ALPHA = 0.65;
+
+/**
+ * Opacity for the furthest-back base edges (B→C, C→D) and far roof edges.
+ * Significantly dimmed to create depth perception within a single building.
+ */
+const BACK_EDGE_ALPHA = 0.30;
+
+/**
+ * Opacity for the back-left vertical edge (D→D2) within a building.
+ * Slightly higher than BACK_EDGE_ALPHA because D is a silhouette vertex.
+ */
+const BACK_VERT_ALPHA = 0.35;
+
+/**
+ * Opacity for frontmost base/face edges (A→B, D→A, A2→B2, A2→A).
+ * These are the nearest edges to the viewer and appear brightest.
+ */
+const FRONT_EDGE_ALPHA = 0.85;
+
+/**
+ * Opacity for transitional edges that connect back vertices to front vertices
+ * (D2→A2 roof edge, D2→A2 left-face top edge). Between front and back.
+ */
+const MID_EDGE_ALPHA = 0.60;
 
 /** Module-level offscreen canvas reused across frames to composite faded buildings. */
 let _offscreenEl: HTMLCanvasElement | null = null;
@@ -101,9 +133,17 @@ export function drawBuildings(
     (a, b) => (a.gx + a.gy) - (b.gx + b.gy),
   );
 
+  // Buildings with taller foreground neighbours (passive occluders) are drawn
+  // at PASSIVE_OCCLUSION_ALPHA so their visible portions look farther back.
+  const passiveOccluded = findPassiveOccluders(sorted);
+
   for (const b of sorted) {
     if (occluderIds.has(b.id)) {
+      // X-ray focus effect: this building occludes the cursor/selected building.
       drawBuildingFaded(ctx, camera, b, showLabels, time);
+    } else if (passiveOccluded.has(b.id)) {
+      // Depth fade: building is behind a taller foreground building — dim it.
+      drawBuildingFaded(ctx, camera, b, showLabels, time, PASSIVE_OCCLUSION_ALPHA);
     } else {
       drawBuilding(ctx, camera, b, showLabels, time);
     }
@@ -112,11 +152,11 @@ export function drawBuildings(
 
 /**
  * Draw a building at reduced opacity via an offscreen canvas composite.
- * Used for the X-ray effect: occluding buildings are faded so the user can see
- * the building they have focused with the keyboard cursor or selection.
+ * Used for the X-ray effect (occluding buildings faded to reveal focused building)
+ * and the passive depth-fade effect (back buildings drawn at reduced alpha).
  *
  * Building is drawn normally onto an offscreen canvas, then composited onto the
- * main canvas at OCCLUDER_ALPHA. This is necessary because drawBuilding() sets
+ * main canvas at the given alpha. This is necessary because drawBuilding() sets
  * globalAlpha internally — a plain ctx.globalAlpha wrapper would be overridden.
  */
 function drawBuildingFaded(
@@ -125,6 +165,7 @@ function drawBuildingFaded(
   b: Building,
   showLabels: boolean,
   time: number,
+  alpha = OCCLUDER_ALPHA,
 ): void {
   const { width, height } = ctx.canvas;
   const offCtx = getOffscreenCtx(width, height);
@@ -144,7 +185,7 @@ function drawBuildingFaded(
   // being scaled again by the DPI transform on the main context.
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalAlpha = OCCLUDER_ALPHA;
+  ctx.globalAlpha = alpha;
   ctx.drawImage(_offscreenEl!, 0, 0);
   ctx.restore();
 }
@@ -161,8 +202,11 @@ function drawBuildingFaded(
  * Visible side faces: A-B wall (upper-right) and A-D wall (lower-left).
  * Hidden back faces: B-C wall and D-C wall (3D geometry).
  *
- * 2D silhouette edges (always solid): A→B, D→C, C→C2, D→A, and all roof/face edges.
- * Only B→C is truly hidden in the 2D projection and drawn dashed.
+ * Depth-occlusion edge opacity:
+ *   Bright (FRONT_EDGE_ALPHA): A→B, D→A (frontmost base), A2→B2 (roof front), A2→A (vertical)
+ *   Dim (BACK_EDGE_ALPHA): C→D base, B→C hidden dashed, B2→C2/C2→D2 roof back edges
+ *   Back vertical (BACK_VERT_ALPHA): D→D2 back-left vertical
+ *   Transitional (MID_EDGE_ALPHA): D2→A2 left-face top edge, D2→A2 roof left edge
  */
 function drawBuilding(
   ctx: CanvasRenderingContext2D,
@@ -198,19 +242,25 @@ function drawBuilding(
   ctx.closePath();
   ctx.fill();
 
-  // --- 2. Base outline — solid silhouette edges (A→B, C→D→A); B→C is hidden and drawn dashed below ---
-  // D→C and C→C2 are on the 2D convex hull of the projected building and must be solid.
+  // --- 2. Base outline — frontmost edges at full opacity, far-back edges dimmed ---
+  // A→B (front-right) and D→A (front-left) are the nearest visible base edges — bright.
+  // C→D goes to the far-back corner C and is significantly dimmed for depth perception.
   ctx.strokeStyle = strokeColor;
   ctx.lineWidth = 0.85;
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = FRONT_EDGE_ALPHA;
   ctx.beginPath();
   ctx.moveTo(A[0], A[1]);
-  ctx.lineTo(B[0], B[1]);  // A→B: front edge of right face (visible boundary)
+  ctx.lineTo(B[0], B[1]);  // A→B: front edge of right face (nearest corner → bright)
   ctx.stroke();
   ctx.beginPath();
+  ctx.moveTo(D[0], D[1]);
+  ctx.lineTo(A[0], A[1]);  // D→A: left silhouette edge (front-left → bright)
+  ctx.stroke();
+  // C→D: lower silhouette edge toward the far-back corner — dim for depth
+  ctx.globalAlpha = BACK_EDGE_ALPHA;
+  ctx.beginPath();
   ctx.moveTo(C[0], C[1]);
-  ctx.lineTo(D[0], D[1]);  // C→D: lower silhouette edge
-  ctx.lineTo(A[0], A[1]);  // D→A: left silhouette edge
+  ctx.lineTo(D[0], D[1]);
   ctx.stroke();
   ctx.globalAlpha = 1;
 
@@ -221,6 +271,7 @@ function drawBuilding(
   ctx.setLineDash([2, 2]);
   ctx.strokeStyle = SD.base01;
   ctx.lineWidth = 0.5;
+  ctx.globalAlpha = BACK_EDGE_ALPHA;  // furthest-back hidden edge — very dim
   ctx.beginPath();
   ctx.moveTo(B[0], B[1]);
   ctx.lineTo(C[0], C[1]);
@@ -246,16 +297,33 @@ function drawBuilding(
   ctx.closePath();
   ctx.stroke();
 
-  // Lower-left face (A -> D -> D2 -> A2) — outline only
+  // Lower-left face — draw per-segment so the back-left vertical D→D2 can be dimmed.
+  // A→D (front-left base edge) and A2→A (front vertical) stay bright.
+  // D→D2 is the "back-top-left" vertical identified in the depth-occlusion spec — dim it.
+  ctx.globalAlpha = FRONT_EDGE_ALPHA;
   ctx.beginPath();
   ctx.moveTo(A[0], A[1]);
-  ctx.lineTo(D[0], D[1]);
-  ctx.lineTo(D2[0], D2[1]);
-  ctx.lineTo(A2[0], A2[1]);
-  ctx.closePath();
+  ctx.lineTo(D[0], D[1]);  // A→D: front-left base edge
   ctx.stroke();
+  ctx.globalAlpha = BACK_VERT_ALPHA;
+  ctx.beginPath();
+  ctx.moveTo(D[0], D[1]);
+  ctx.lineTo(D2[0], D2[1]);  // D→D2: back-left vertical — significantly dimmed
+  ctx.stroke();
+  ctx.globalAlpha = MID_EDGE_ALPHA;
+  ctx.beginPath();
+  ctx.moveTo(D2[0], D2[1]);
+  ctx.lineTo(A2[0], A2[1]);  // D2→A2: transitions from back-left to front-near
+  ctx.stroke();
+  ctx.globalAlpha = FRONT_EDGE_ALPHA;
+  ctx.beginPath();
+  ctx.moveTo(A2[0], A2[1]);
+  ctx.lineTo(A[0], A[1]);  // A2→A: front vertical
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 
   // --- 5. Roof (A2 -> B2 -> C2 -> D2) ---
+  // Fill first (behind all strokes).
   ctx.fillStyle = `rgba(${tR},${tG},${tB},0.20)`;
   ctx.beginPath();
   ctx.moveTo(A2[0], A2[1]);
@@ -264,9 +332,29 @@ function drawBuilding(
   ctx.lineTo(D2[0], D2[1]);
   ctx.closePath();
   ctx.fill();
+  // Roof edges: near/front bright, far-back corners dim.
   ctx.strokeStyle = strokeColor;
   ctx.lineWidth = 0.95;
+  ctx.globalAlpha = FRONT_EDGE_ALPHA;
+  ctx.beginPath();
+  ctx.moveTo(A2[0], A2[1]);
+  ctx.lineTo(B2[0], B2[1]);  // A2→B2: near-front roof edge — bright
   ctx.stroke();
+  ctx.globalAlpha = BACK_EDGE_ALPHA;
+  ctx.beginPath();
+  ctx.moveTo(B2[0], B2[1]);
+  ctx.lineTo(C2[0], C2[1]);  // B2→C2: roof edge toward far-back corner — dim
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(C2[0], C2[1]);
+  ctx.lineTo(D2[0], D2[1]);  // C2→D2: roof edge toward far-back corner — dim
+  ctx.stroke();
+  ctx.globalAlpha = MID_EDGE_ALPHA;
+  ctx.beginPath();
+  ctx.moveTo(D2[0], D2[1]);
+  ctx.lineTo(A2[0], A2[1]);  // D2→A2: left roof edge back-to-front
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 
   // --- 6. Red flash fill for err/CRIT buildings ---
   if (isAlarmStatus(b.status)) {
@@ -726,22 +814,20 @@ function drawBuildingGhost(
 }
 
 /**
- * Second rendering pass for the always-on occlusion depth-fade effect.
+ * Second rendering pass: faint ghost overlay for buildings fully hidden by a foreground building.
  *
- * For each building that is partially hidden behind a foreground building
- * (higher painter-sort-key with overlapping footprint), draws that building's
- * geometry at OCCLUSION_FADE_ALPHA clipped to the occluder's visible silhouette.
- * This produces a ghost image of the back building in the region it is
- * geometrically occluded, giving depth-readability cues without altering the
- * front buildings.
+ * The primary depth signal comes from drawBuildings(), which draws passively-occluded
+ * buildings at PASSIVE_OCCLUSION_ALPHA (0.65) so their visible portions appear farther
+ * back. This overlay adds a secondary cue: a very faint (OCCLUSION_FADE_ALPHA = 0.18)
+ * ghost of the back building inside the occluder's silhouette, giving a hint that a
+ * structure exists even in the completely hidden region.
  *
- * Must be called AFTER the main drawBuildings() pass so the ghost composites
- * on top of the already-drawn occluding buildings.
+ * Must be called AFTER the main drawBuildings() pass.
  *
  * Skips:
  *   - Selected/cursor buildings — the X-ray effect (occluderIds) handles those.
  *   - Buildings already in occluderIds — they are drawn at 0.22 by drawBuildings;
- *     stacking a 0.7 ghost would compound the fading incorrectly.
+ *     stacking a ghost would compound the fading incorrectly.
  *   - Buildings with no overlapping foreground neighbour (no-op).
  */
 export function drawOcclusionFadeOverlay(
