@@ -37,6 +37,10 @@ export function sanitizeAgentIndex(
   return newIndex === -1 ? null : newIndex;
 }
 
+const HJKL_DIR_MAP: Record<string, Direction> = {
+  h: 'left', l: 'right', k: 'up', j: 'down',
+};
+
 const DIR_VECTORS: Record<Direction, [number, number]> = {
   left: [-1, 0],  // H — iso −x
   right: [1, 0],  // L — iso +x
@@ -417,10 +421,7 @@ export function useCityKeyboard(
           return;
         }
 
-        const dirMap: Record<string, Direction> = {
-          h: 'left', l: 'right', k: 'up', j: 'down',
-        };
-        const dir = dirMap[e.key];
+        const dir = HJKL_DIR_MAP[e.key];
         if (dir) {
           const target = findNearest(cursorDistrict, districtItems, dir);
           if (target) setCursorDistrict(target.id);
@@ -453,10 +454,7 @@ export function useCityKeyboard(
       }
 
       // H/J/K/L — directional movement
-      const dirMap: Record<string, Direction> = {
-        h: 'left', l: 'right', k: 'up', j: 'down',
-      };
-      const dir = dirMap[e.key];
+      const dir = HJKL_DIR_MAP[e.key];
       if (dir) {
         const target = findNearest(cursor, buildings, dir);
         if (target) moveCursor(cam, target, setCursor, syncCamera);
@@ -514,7 +512,7 @@ export function useCityKeyboard(
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
-    setCursor, selectBuilding, setCursorDistrict, setFocusZone,
+    setCursor, selectBuilding, setCursorDistrict, selectDistrict, setFocusZone,
     syncCamera, panByKey, zoomIn, zoomOut, resetZoom,
     toggleRoads, toggleLabels, toggleMinimap, toggleCoverageHeatmap,
     toggleShortcutOverlay, toggleHighContrast, toggleLod,
