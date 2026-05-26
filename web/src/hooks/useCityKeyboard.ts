@@ -153,7 +153,6 @@ export function useCityKeyboard(
   const selectBuilding = useUiStore((s) => s.selectBuilding);
   const cursorDistrictId = useUiStore((s) => s.cursorDistrictId);
   const setCursorDistrict = useUiStore((s) => s.setCursorDistrict);
-  const selectDistrict = useUiStore((s) => s.selectDistrict);
   const lodLevel = useUiStore((s) => s.lodLevel);
   const focusZone = useUiStore((s) => s.focusZone);
   const setFocusZone = useUiStore((s) => s.setFocusZone);
@@ -289,7 +288,6 @@ export function useCityKeyboard(
         }
         if (lodLevel === 'L3' && cursorDistrictId) {
           setCursorDistrict(null);
-          selectDistrict(null);
           e.preventDefault();
           return;
         }
