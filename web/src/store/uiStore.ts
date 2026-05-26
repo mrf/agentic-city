@@ -83,7 +83,6 @@ interface UiStore {
   selectedBuildingId: string | null;
   cursorBuildingId: string | null;
   // Selection — district-level (L3)
-  selectedDistrictId: string | null;
   cursorDistrictId: string | null;
   focusZone: FocusZone;
 
@@ -127,7 +126,6 @@ interface UiStore {
 
   selectBuilding: (id: string | null) => void;
   setCursor: (id: string | null) => void;
-  selectDistrict: (id: string | null) => void;
   setCursorDistrict: (id: string | null) => void;
   setFocusZone: (zone: FocusZone) => void;
   setZoom: (zoom: number) => void;
@@ -161,7 +159,6 @@ interface UiStore {
 export const useUiStore = create<UiStore>((set) => ({
   selectedBuildingId: null,
   cursorBuildingId: null,
-  selectedDistrictId: null,
   cursorDistrictId: null,
   focusZone: 'city',
 
@@ -193,7 +190,6 @@ export const useUiStore = create<UiStore>((set) => ({
 
   selectBuilding: (id) => set({ selectedBuildingId: id }),
   setCursor: (id) => set({ cursorBuildingId: id }),
-  selectDistrict: (id) => set({ selectedDistrictId: id }),
   setCursorDistrict: (id) => set({ cursorDistrictId: id }),
   setFocusZone: (zone) => set({ focusZone: zone }),
   setZoom: (zoom) => set((s) => ({ zoom, lodLevel: computeLodLevel(zoom, s.lodLevel) })),

@@ -31,7 +31,6 @@ export function App(): JSX.Element {
   const setCursor = useUiStore((s) => s.setCursor);
   const selectBuilding = useUiStore((s) => s.selectBuilding);
   const setCursorDistrict = useUiStore((s) => s.setCursorDistrict);
-  const selectDistrict = useUiStore((s) => s.selectDistrict);
   const setCamera = useUiStore((s) => s.setCamera);
   const setZoom = useUiStore((s) => s.setZoom);
   const focusedAgentIndex = useUiStore((s) => s.focusedAgentIndex);
@@ -122,7 +121,6 @@ export function App(): JSX.Element {
         const hit = hitTestDistricts(renderer.camera, districtBuildings, sx, sy);
         if (hit) {
           setCursorDistrict(hit.id);
-          selectDistrict(hit.id);
         } else {
           const nearest = nearestDistrictToScreen(renderer.camera, districtBuildings, sx, sy);
           if (nearest) setCursorDistrict(nearest.id);
@@ -138,7 +136,7 @@ export function App(): JSX.Element {
         }
       }
     },
-    [city.agents, city.buildings, lodLevel, districtBuildings, setCursor, selectBuilding, setCursorDistrict, selectDistrict, setFocusedAgentIndex, setInspectedAgentId],
+    [city.agents, city.buildings, lodLevel, districtBuildings, setCursor, selectBuilding, setCursorDistrict, setFocusedAgentIndex, setInspectedAgentId],
   );
 
   // Initialize renderer and connect to live backend
