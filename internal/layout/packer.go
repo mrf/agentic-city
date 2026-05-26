@@ -12,7 +12,9 @@ const gutterSize = 2.0
 // packDistrict computes layout fields (GX, GY, GW, GH, GZ) for buildings within
 // the given district rectangle. Buildings are sorted by LOC descending (path
 // ascending as tiebreaker) before packing, producing a deterministic shelf layout.
-// Returns the buildings with layout fields filled; original slice is not modified.
+// Footprints are scaled down uniformly if necessary so all buildings stay within
+// bw × bh. Returns the buildings with layout fields filled; original slice is not
+// modified.
 func packDistrict(buildings []model.Building, bx, by, bw, bh float64) []model.Building {
 	out := make([]model.Building, len(buildings))
 	copy(out, buildings)
@@ -29,6 +31,9 @@ func packDistrict(buildings []model.Building, bx, by, bw, bh float64) []model.Bu
 		return out[i].ID < out[j].ID
 	})
 
+	// Scale footprints down if needed so buildings fit within bh.
+	scale := footprintScale(out, bw, bh)
+
 	// Shelf-pack: place buildings left-to-right; start a new shelf when width overflows.
 	curX := bx + gutterSize
 	curY := by + gutterSize
@@ -36,6 +41,8 @@ func packDistrict(buildings []model.Building, bx, by, bw, bh float64) []model.Bu
 
 	for i := range out {
 		fw, fh, fz := footprint(out[i].LOC)
+		fw *= scale
+		fh *= scale
 
 		// Start a new shelf if the building doesn't fit horizontally.
 		if curX+fw+gutterSize > bx+bw && curX > bx+gutterSize {
@@ -59,16 +66,64 @@ func packDistrict(buildings []model.Building, bx, by, bw, bh float64) []model.Bu
 	return out
 }
 
+// footprintScale returns a uniform scale factor (≤ 1.0) so that shelf-packed
+// buildings fit within bw × bh. Uses a two-pass estimate to account for the
+// fixed gutter overhead (which does not scale with the footprints).
+func footprintScale(buildings []model.Building, bw, bh float64) float64 {
+	if bh <= 0 {
+		return 1.0
+	}
+	needed := measurePackHeight(buildings, bw, 1.0)
+	if needed <= bh {
+		return 1.0
+	}
+
+	const minScale = 0.05
+
+	// First estimate.
+	s := math.Max(bh/needed, minScale)
+
+	// Second pass: measure at scale s to correct for gutter overhead.
+	needed2 := measurePackHeight(buildings, bw, s)
+	if needed2 > bh && needed2 > 0 {
+		s = math.Max(s*bh/needed2, minScale)
+	}
+	return s
+}
+
+// measurePackHeight simulates shelf packing at the given scale and returns the
+// total height consumed (relative to origin 0).
+func measurePackHeight(buildings []model.Building, bw, scale float64) float64 {
+	curX := gutterSize
+	curY := gutterSize
+	shelfH := 0.0
+	for _, b := range buildings {
+		fw, fh, _ := footprint(b.LOC)
+		fw *= scale
+		fh *= scale
+		if curX+fw+gutterSize > bw && curX > gutterSize {
+			curY += shelfH + gutterSize
+			curX = gutterSize
+			shelfH = 0
+		}
+		curX += fw + gutterSize
+		if fh > shelfH {
+			shelfH = fh
+		}
+	}
+	return curY + shelfH + gutterSize
+}
+
 // footprint returns the (width, depth, height) for a building with the given LOC.
 //
 //	w = clamp(√(LOC/20), 4, 12)
 //	h = w × 0.8   (footprint depth)
 //	z = clamp(LOC/30, 3, 30)  (visual height)
-func footprint(loc int) (w, h, z float64) {
-	w = clamp(math.Sqrt(float64(loc)/20.0), 4.0, 12.0)
-	h = w * 0.8
-	z = clamp(float64(loc)/30.0, 3.0, 30.0)
-	return
+func footprint(loc int) (float64, float64, float64) {
+	w := clamp(math.Sqrt(float64(loc)/20.0), 4.0, 12.0)
+	h := w * 0.8
+	z := clamp(float64(loc)/30.0, 3.0, 30.0)
+	return w, h, z
 }
 
 func clamp(v, lo, hi float64) float64 {

@@ -3,6 +3,7 @@ package layout
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/mferree/agent-city/internal/model"
@@ -464,6 +465,112 @@ func TestLayout_BuildingsWithinDistrictBounds(t *testing.T) {
 		if b.GY+b.GH > d.GY+d.GH+eps {
 			t.Errorf("building %q bottom=%.3f > district bottom=%.3f",
 				b.ID, b.GY+b.GH, d.GY+d.GH)
+		}
+	}
+}
+
+// TestLayout_GridEqualCells verifies that all real (non-placeholder) districts
+// have the same GW and GH, forming a uniform grid.
+func TestLayout_GridEqualCells(t *testing.T) {
+	buildings := []model.Building{
+		{ID: "a/f.go", LOC: 100},
+		{ID: "b/f.go", LOC: 200},
+		{ID: "c/f.go", LOC: 50},
+		{ID: "d/f.go", LOC: 300},
+		{ID: "e/f.go", LOC: 150},
+	}
+	result := Layout(buildings, Config{DistrictDepth: 1})
+
+	real := make([]model.District, 0)
+	for _, d := range result.Districts {
+		if !strings.HasPrefix(d.ID, "__pad") {
+			real = append(real, d)
+		}
+	}
+	if len(real) < 2 {
+		t.Fatalf("expected at least 2 real districts, got %d", len(real))
+	}
+	wantW := real[0].GW
+	wantH := real[0].GH
+	for _, d := range real[1:] {
+		if math.Abs(d.GW-wantW) > eps {
+			t.Errorf("district %q GW=%.3f, want %.3f", d.ID, d.GW, wantW)
+		}
+		if math.Abs(d.GH-wantH) > eps {
+			t.Errorf("district %q GH=%.3f, want %.3f", d.ID, d.GH, wantH)
+		}
+	}
+}
+
+// TestLayout_GridPadsToRectangle verifies that the total district count (real +
+// placeholder) equals rows×cols, forming a complete rectangle.
+func TestLayout_GridPadsToRectangle(t *testing.T) {
+	cases := []struct {
+		n int // number of real districts
+	}{
+		{1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("n=%d", tc.n), func(t *testing.T) {
+			buildings := make([]model.Building, tc.n)
+			for i := range buildings {
+				buildings[i] = model.Building{
+					ID:  fmt.Sprintf("pkg%d/f.go", i),
+					LOC: 100,
+				}
+			}
+			result := Layout(buildings, Config{DistrictDepth: 1})
+			total := len(result.Districts)
+
+			// Find factors: total must equal rows*cols for integer rows, cols
+			// where cols = ceil(sqrt(n)) and rows = ceil(n/cols).
+			cols := int(math.Ceil(math.Sqrt(float64(tc.n))))
+			if cols == 0 {
+				cols = 1
+			}
+			rows := (tc.n + cols - 1) / cols
+			want := rows * cols
+
+			if total != want {
+				t.Errorf("n=%d: got %d total districts, want %d (%d×%d)", tc.n, total, want, rows, cols)
+			}
+		})
+	}
+}
+
+// TestLayout_BuildingsContainedRightBound verifies that no building exceeds its
+// district's right edge (GX+GW), the overflow direction most likely to produce
+// inter-district visual collisions.
+func TestLayout_BuildingsContainedRightBound(t *testing.T) {
+	// Use many tiny-LOC buildings so that the smallest district gets many files
+	// and is at risk of shelf-packing overflowing to the right.
+	buildings := []model.Building{
+		{ID: "big/huge.go", LOC: 10000},
+	}
+	for i := 0; i < 20; i++ {
+		buildings = append(buildings, model.Building{
+			ID:  fmt.Sprintf("tiny/f%02d.go", i),
+			LOC: 10,
+		})
+	}
+	result := Layout(buildings, Config{DistrictDepth: 1})
+
+	distByID := make(map[string]model.District)
+	for _, d := range result.Districts {
+		distByID[d.ID] = d
+	}
+	for _, b := range result.Buildings {
+		d, ok := distByID[b.DistrictID]
+		if !ok {
+			t.Fatalf("building %q has unknown districtID %q", b.ID, b.DistrictID)
+		}
+		if b.GX+b.GW > d.GX+d.GW+eps {
+			t.Errorf("building %q right=%.3f > district %q right=%.3f",
+				b.ID, b.GX+b.GW, d.ID, d.GX+d.GW)
+		}
+		if b.GY+b.GH > d.GY+d.GH+eps {
+			t.Errorf("building %q bottom=%.3f > district %q bottom=%.3f",
+				b.ID, b.GY+b.GH, d.ID, d.GY+d.GH)
 		}
 	}
 }
