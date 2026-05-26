@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { sanitizeAgentIndex } from './useCityKeyboard';
+// Note: the N/M key independence is covered by store-level tests in uiStore.test.ts
+// (toggle independence — N/M key conflict regression). The keyboard dispatch maps
+// 'n'/'N' → toggleLabels only, 'm'/'M' → toggleMinimap only; the store tests
+// guard that invariant without requiring a full DOM/hook setup here.
 
 function agent(id: string): { id: string } {
   return { id };

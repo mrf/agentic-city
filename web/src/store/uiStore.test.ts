@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { computeLodLevel, LOD_THRESHOLDS } from './uiStore';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { computeLodLevel, LOD_THRESHOLDS, useUiStore } from './uiStore';
 
 describe('LOD_THRESHOLDS', () => {
   it('L2.leave is at a usable zoom level (>= 2.0)', () => {
@@ -38,6 +38,43 @@ describe('computeLodLevel — L2/L3 boundary', () => {
     const justBelow = LOD_THRESHOLDS.L2.enter - 0.01;
     expect(computeLodLevel(justBelow, 'L3')).toBe('L3');
   });
+});
+
+describe('toggle independence — N/M key conflict regression (agentic-city-1dj)', () => {
+  // Regression: pressing N was toggling both labels AND minimap simultaneously.
+  // These tests lock down that each toggle action only affects its own field.
+
+  beforeEach(() => {
+    // Reset relevant visibility toggles to known state before each test.
+    useUiStore.setState({ showLabels: true, showMinimap: false });
+  });
+
+  it('toggleLabels flips showLabels', () => {
+    useUiStore.getState().toggleLabels();
+    expect(useUiStore.getState().showLabels).toBe(false);
+    useUiStore.getState().toggleLabels();
+    expect(useUiStore.getState().showLabels).toBe(true);
+  });
+
+  it('toggleLabels does not change showMinimap', () => {
+    const before = useUiStore.getState().showMinimap;
+    useUiStore.getState().toggleLabels();
+    expect(useUiStore.getState().showMinimap).toBe(before);
+  });
+
+  it('toggleMinimap flips showMinimap', () => {
+    useUiStore.getState().toggleMinimap();
+    expect(useUiStore.getState().showMinimap).toBe(true);
+    useUiStore.getState().toggleMinimap();
+    expect(useUiStore.getState().showMinimap).toBe(false);
+  });
+
+  it('toggleMinimap does not change showLabels', () => {
+    const before = useUiStore.getState().showLabels;
+    useUiStore.getState().toggleMinimap();
+    expect(useUiStore.getState().showLabels).toBe(before);
+  });
+
 });
 
 describe('computeLodLevel — other boundaries unaffected', () => {
