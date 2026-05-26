@@ -26,6 +26,37 @@ func buildingsOverlap(a, b model.Building) bool {
 		a.GY+a.GH > b.GY+eps && b.GY+b.GH > a.GY+eps
 }
 
+// ---- test helpers -----------------------------------------------------------
+
+// districtByID builds a lookup map from district ID to District.
+func districtByID(districts []model.District) map[string]model.District {
+	m := make(map[string]model.District, len(districts))
+	for _, d := range districts {
+		m[d.ID] = d
+	}
+	return m
+}
+
+// assertBuildingsContained checks that every building in result stays within
+// its district's right and bottom edges.
+func assertBuildingsContained(t *testing.T, result Result, byID map[string]model.District) {
+	t.Helper()
+	for _, b := range result.Buildings {
+		d, ok := byID[b.DistrictID]
+		if !ok {
+			t.Fatalf("building %q has unknown districtID %q", b.ID, b.DistrictID)
+		}
+		if b.GX+b.GW > d.GX+d.GW+eps {
+			t.Errorf("building %q right=%.3f > district %q right=%.3f",
+				b.ID, b.GX+b.GW, d.ID, d.GX+d.GW)
+		}
+		if b.GY+b.GH > d.GY+d.GH+eps {
+			t.Errorf("building %q bottom=%.3f > district %q bottom=%.3f",
+				b.ID, b.GY+b.GH, d.ID, d.GY+d.GH)
+		}
+	}
+}
+
 // ---- squarify tests ---------------------------------------------------------
 
 func TestSquarify_EmptyInput(t *testing.T) {
@@ -442,13 +473,10 @@ func TestLayout_BuildingsWithinDistrictBounds(t *testing.T) {
 	}
 	result := Layout(buildings, Config{DistrictDepth: 1})
 
-	distByID := make(map[string]model.District)
-	for _, d := range result.Districts {
-		distByID[d.ID] = d
-	}
+	byID := districtByID(result.Districts)
 
 	for _, b := range result.Buildings {
-		d, ok := distByID[b.DistrictID]
+		d, ok := byID[b.DistrictID]
 		if !ok {
 			t.Fatalf("building %q has unknown districtID %q", b.ID, b.DistrictID)
 		}
@@ -458,15 +486,8 @@ func TestLayout_BuildingsWithinDistrictBounds(t *testing.T) {
 		if b.GY < d.GY-eps {
 			t.Errorf("building %q GY=%.3f < district GY=%.3f", b.ID, b.GY, d.GY)
 		}
-		if b.GX+b.GW > d.GX+d.GW+eps {
-			t.Errorf("building %q right=%.3f > district right=%.3f",
-				b.ID, b.GX+b.GW, d.GX+d.GW)
-		}
-		if b.GY+b.GH > d.GY+d.GH+eps {
-			t.Errorf("building %q bottom=%.3f > district bottom=%.3f",
-				b.ID, b.GY+b.GH, d.GY+d.GH)
-		}
 	}
+	assertBuildingsContained(t, result, byID)
 }
 
 // TestLayout_GridEqualCells verifies that all real (non-placeholder) districts
@@ -555,24 +576,29 @@ func TestLayout_BuildingsContainedRightBound(t *testing.T) {
 	}
 	result := Layout(buildings, Config{DistrictDepth: 1})
 
-	distByID := make(map[string]model.District)
-	for _, d := range result.Districts {
-		distByID[d.ID] = d
+	assertBuildingsContained(t, result, districtByID(result.Districts))
+}
+
+// TestPackDistrict_DenseDistrictContained is the regression test for agentic-city-y1o.
+// Repro: 9 districts with one LOC=5000 file each, 1 district with 100 LOC=10 files.
+// The dense district receives a small cell and the two-pass footprintScale fails to
+// converge, causing packed height to exceed the cell height by ~0.7 units.
+func TestPackDistrict_DenseDistrictContained(t *testing.T) {
+	buildings := make([]model.Building, 0, 109)
+	for i := 0; i < 9; i++ {
+		buildings = append(buildings, model.Building{
+			ID:  fmt.Sprintf("pkg%d/big.go", i),
+			LOC: 5000,
+		})
 	}
-	for _, b := range result.Buildings {
-		d, ok := distByID[b.DistrictID]
-		if !ok {
-			t.Fatalf("building %q has unknown districtID %q", b.ID, b.DistrictID)
-		}
-		if b.GX+b.GW > d.GX+d.GW+eps {
-			t.Errorf("building %q right=%.3f > district %q right=%.3f",
-				b.ID, b.GX+b.GW, d.ID, d.GX+d.GW)
-		}
-		if b.GY+b.GH > d.GY+d.GH+eps {
-			t.Errorf("building %q bottom=%.3f > district %q bottom=%.3f",
-				b.ID, b.GY+b.GH, d.ID, d.GY+d.GH)
-		}
+	for i := 0; i < 100; i++ {
+		buildings = append(buildings, model.Building{
+			ID:  fmt.Sprintf("dense/f%03d.go", i),
+			LOC: 10,
+		})
 	}
+	result := Layout(buildings, Config{DistrictDepth: 1})
+	assertBuildingsContained(t, result, districtByID(result.Districts))
 }
 
 func TestLayout_OutputSortedByID(t *testing.T) {

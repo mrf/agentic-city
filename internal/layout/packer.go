@@ -67,28 +67,31 @@ func packDistrict(buildings []model.Building, bx, by, bw, bh float64) []model.Bu
 }
 
 // footprintScale returns a uniform scale factor (≤ 1.0) so that shelf-packed
-// buildings fit within bw × bh. Uses a two-pass estimate to account for the
-// fixed gutter overhead (which does not scale with the footprints).
+// buildings fit within bw × bh. Uses binary search to converge on the largest
+// scale where measurePackHeight(buildings, bw, s) ≤ bh. The two-pass estimate
+// failed to converge when many shelves existed because gutters are fixed-size
+// and compound non-linearly with the number of rows (agentic-city-y1o).
 func footprintScale(buildings []model.Building, bw, bh float64) float64 {
 	if bh <= 0 {
 		return 1.0
 	}
-	needed := measurePackHeight(buildings, bw, 1.0)
-	if needed <= bh {
+	if measurePackHeight(buildings, bw, 1.0) <= bh {
 		return 1.0
 	}
 
 	const minScale = 0.05
+	lo, hi := minScale, 1.0
 
-	// First estimate.
-	s := math.Max(bh/needed, minScale)
-
-	// Second pass: measure at scale s to correct for gutter overhead.
-	needed2 := measurePackHeight(buildings, bw, s)
-	if needed2 > bh && needed2 > 0 {
-		s = math.Max(s*bh/needed2, minScale)
+	// ~20 iterations gives sub-micron precision on the scale factor.
+	for range 20 {
+		mid := (lo + hi) / 2
+		if measurePackHeight(buildings, bw, mid) <= bh {
+			lo = mid
+		} else {
+			hi = mid
+		}
 	}
-	return s
+	return lo
 }
 
 // measurePackHeight simulates shelf packing at the given scale and returns the
