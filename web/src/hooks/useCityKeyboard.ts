@@ -510,7 +510,7 @@ export function useCityKeyboard(
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
-    setCursor, selectBuilding, setCursorDistrict, selectDistrict, setFocusZone,
+    setCursor, selectBuilding, setCursorDistrict, setFocusZone,
     syncCamera, panByKey, zoomIn, zoomOut, resetZoom,
     toggleRoads, toggleLabels, toggleMinimap, toggleCoverageHeatmap,
     toggleShortcutOverlay, toggleHighContrast, toggleLod,
