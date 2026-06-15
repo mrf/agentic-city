@@ -1,3 +1,23 @@
+# STATUS: PORTING COMPLETE — HISTORICAL REFERENCE
+
+**These sketches have all been implemented.** As of 2026-06, every design in
+`project/sketches/` has shipped in the live app:
+
+- `sketch-A-*` (isometric city) → `web/src/canvas/` renderers
+- `sketch-B-topdown` / `sketch-C-zoom-levels` (LOD) → BuildingRenderer / DistrictRenderer
+- `sketch-D-failure` (alarm state) → `web/src/orchestration/AlarmOverlay.tsx`, `LightningRenderer.ts`
+- `sketch-E-assign` (dispatch UX) → `web/src/orchestration/DispatchWizard.tsx`
+- `sd-helpers` palette/timings → `web/src/theme/`
+
+This directory is no longer active working material. It is kept as the cited
+**visual source-of-truth** for rendering math and style (see `DESIGN.md` and
+`CLAUDE.md`) and as provenance for the `sketch-*` comments in `web/src/`. Treat it
+as read-only historical reference — consult it when tweaking visuals, but new
+feature work no longer starts here. The handoff instructions below are preserved
+for context.
+
+---
+
 # CODING AGENTS: READ THIS FIRST
 
 This is a **handoff bundle** from Claude Design (claude.ai/design).

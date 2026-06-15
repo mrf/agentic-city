@@ -18,7 +18,7 @@ import (
 // the package is insulated from upstream API changes.
 type SessionState struct {
 	ID                 string
-	Source             string  // "claude" | "codex" | "gemini"
+	Source             string  // "claude" | "codex" | "antigravity"
 	Activity           string  // "idle" | "working" | "waiting" | "terminal"
 	Lifecycle          string  // "active" | "terminal"
 	Model              string  // e.g. "claude-opus-4-6"
@@ -270,7 +270,7 @@ func colorForSource(source string) string {
 		return "blue"
 	case "codex":
 		return "green"
-	case "gemini":
+	case "antigravity":
 		return "orange"
 	default:
 		return "blue"

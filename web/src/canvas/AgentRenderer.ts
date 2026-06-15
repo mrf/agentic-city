@@ -7,7 +7,7 @@
  *   ports — 4 porthole lights evenly spaced on the disc rim
  *
  * Visual encoding:
- *   color   — model family: blue=Claude, green=Codex, orange=Gemini
+ *   color   — model family: blue=Claude, green=Codex, orange=Antigravity
  *   scale   — tier: haiku=0.6×, sonnet=1.0×, opus=1.4×
  *   glow    — dome glow when mode='thinking'
  *   blink   — porthole blink when mode='error'

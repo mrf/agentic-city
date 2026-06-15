@@ -79,7 +79,7 @@ func TestColorForSource(t *testing.T) {
 		{"claude", "blue"},
 		{"CLAUDE", "blue"},
 		{"codex", "green"},
-		{"gemini", "orange"},
+		{"antigravity", "orange"},
 		{"unknown", "blue"},
 		{"", "blue"},
 	}
@@ -396,7 +396,7 @@ func TestAgentsIdleMode(t *testing.T) {
 	tr := New("/repo")
 	tr.UpdateSession(SessionState{
 		ID:        "sess4",
-		Source:    "gemini",
+		Source:    "antigravity",
 		Activity:  "idle",
 		Lifecycle: "active",
 		Model:     "gemini-1.5-flash",
@@ -415,7 +415,7 @@ func TestAgentsIdleMode(t *testing.T) {
 		t.Errorf("ModelTier = %q, want %q", a.ModelTier, "haiku")
 	}
 	if a.Color != "orange" {
-		t.Errorf("Color = %q, want %q (gemini orange)", a.Color, "orange")
+		t.Errorf("Color = %q, want %q (antigravity orange)", a.Color, "orange")
 	}
 }
 
@@ -456,7 +456,7 @@ func TestAgentsMultipleSessions(t *testing.T) {
 	for _, s := range []SessionState{
 		{ID: "a", Source: "claude", Activity: "working", Lifecycle: "active"},
 		{ID: "b", Source: "codex", Activity: "idle", Lifecycle: "active"},
-		{ID: "c", Source: "gemini", Activity: "working", Lifecycle: "terminal"},
+		{ID: "c", Source: "antigravity", Activity: "working", Lifecycle: "terminal"},
 	} {
 		tr.UpdateSession(s)
 	}

@@ -11,7 +11,7 @@ func TestSessionsToAgents_filtersTerminal(t *testing.T) {
 	sessions := []session.SessionState{
 		{ID: "a1", Source: "claude", Lifecycle: session.LifecycleActive, Activity: session.ActivityIdle},
 		{ID: "a2", Source: "codex", Lifecycle: session.LifecycleTerminal, Activity: session.ActivityIdle},
-		{ID: "a3", Source: "gemini", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking},
+		{ID: "a3", Source: "antigravity", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking},
 	}
 
 	got := sessionsToAgents(sessions, "")
@@ -130,7 +130,7 @@ func TestSourceColor(t *testing.T) {
 	}{
 		{"claude", "blue"},
 		{"codex", "green"},
-		{"gemini", "orange"},
+		{"antigravity", "orange"},
 		{"unknown", "grey"},
 		{"", "grey"},
 	}
@@ -167,7 +167,7 @@ func TestSessionsToAgents_colorAndMode(t *testing.T) {
 	sessions := []session.SessionState{
 		{ID: "c1", Source: "claude", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking},
 		{ID: "x1", Source: "codex", Lifecycle: session.LifecycleActive, Activity: session.ActivityIdle},
-		{ID: "g1", Source: "gemini", Lifecycle: session.LifecycleActive, Activity: session.ActivityWaiting},
+		{ID: "g1", Source: "antigravity", Lifecycle: session.LifecycleActive, Activity: session.ActivityWaiting},
 	}
 
 	agents := sessionsToAgents(sessions, "")
@@ -175,7 +175,7 @@ func TestSessionsToAgents_colorAndMode(t *testing.T) {
 	wantByID := map[string]model.Agent{
 		"claude:c1": {Color: "blue", Mode: "work"},
 		"codex:x1":  {Color: "green", Mode: "idle"},
-		"gemini:g1": {Color: "orange", Mode: "idle"},
+		"antigravity:g1": {Color: "orange", Mode: "idle"},
 	}
 
 	if len(agents) != len(wantByID) {
@@ -224,7 +224,7 @@ func TestSyncTracker_updatesAndRemovesTerminal(t *testing.T) {
 	sessions := []session.SessionState{
 		{ID: "a1", Source: "claude", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking, WorkingDir: "/home/user/myrepo"},
 		{ID: "a2", Source: "codex", Lifecycle: session.LifecycleActive, Activity: session.ActivityIdle, WorkingDir: "/home/user/myrepo/subdir"},
-		{ID: "a3", Source: "gemini", Lifecycle: session.LifecycleTerminal, Activity: session.ActivityTerminal, WorkingDir: "/home/user/myrepo"},
+		{ID: "a3", Source: "antigravity", Lifecycle: session.LifecycleTerminal, Activity: session.ActivityTerminal, WorkingDir: "/home/user/myrepo"},
 		{ID: "a4", Source: "claude", Lifecycle: session.LifecycleActive, Activity: session.ActivityWorking, WorkingDir: "/other/repo"},
 	}
 
@@ -241,8 +241,8 @@ func TestSyncTracker_updatesAndRemovesTerminal(t *testing.T) {
 		t.Error("session codex:a2 should be tracked")
 	}
 	// a3 (terminal) should be removed
-	if _, ok := tracker.sessions["gemini:a3"]; ok {
-		t.Error("terminal session gemini:a3 should be removed")
+	if _, ok := tracker.sessions["antigravity:a3"]; ok {
+		t.Error("terminal session antigravity:a3 should be removed")
 	}
 	// a4 is under a different repo, should not be tracked
 	if _, ok := tracker.sessions["claude:a4"]; ok {
