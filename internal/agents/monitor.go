@@ -1,6 +1,6 @@
 // Package agents implements the agentwatch integration for agent-city.
 //
-// StartMonitor configures Claude Code, Codex, and Gemini CLI sources,
+// StartMonitor configures Claude Code, Codex, and Antigravity CLI sources,
 // creates a monitor.Monitor, and runs a goroutine that bridges session
 // state changes into the city's agent roster.
 package agents
@@ -20,9 +20,9 @@ import (
 	"github.com/mrf/agentwatch/monitor"
 	"github.com/mrf/agentwatch/session"
 	"github.com/mrf/agentwatch/source"
+	"github.com/mrf/agentwatch/sources/antigravity"
 	"github.com/mrf/agentwatch/sources/claude"
 	"github.com/mrf/agentwatch/sources/codex"
-	"github.com/mrf/agentwatch/sources/gemini"
 )
 
 // sinkDebounceDelay is the quiet-period after the last agentwatch event before
@@ -31,7 +31,7 @@ import (
 // prevents a visible burst of phantom agents appearing and then disappearing.
 const sinkDebounceDelay = 300 * time.Millisecond
 
-// StartMonitor configures agentwatch sources (Claude, Codex, Gemini),
+// StartMonitor configures agentwatch sources (Claude, Codex, Antigravity),
 // creates a monitor.Monitor and Tracker, and starts a goroutine that bridges
 // session state changes into the Agents slice of cityState.
 //
@@ -169,15 +169,15 @@ func buildSources() []source.Source {
 		slog.Info("agents: codex source configured", "root", codexRoot)
 	}
 
-	// Gemini CLI: ~/.gemini/tmp
-	geminiRoot := filepath.Join(home, ".gemini", "tmp")
-	if _, statErr := os.Stat(geminiRoot); statErr == nil {
-		src, newErr := gemini.New(gemini.WithRoot(geminiRoot))
+	// Antigravity CLI: ~/.antigravitycli
+	antigravityRoot := filepath.Join(home, ".antigravitycli")
+	if _, statErr := os.Stat(antigravityRoot); statErr == nil {
+		src, newErr := antigravity.New(antigravity.WithRoot(antigravityRoot))
 		if newErr != nil {
-			slog.Warn("agents: gemini source init failed", "err", newErr)
+			slog.Warn("agents: antigravity source init failed", "err", newErr)
 		} else {
 			sources = append(sources, src)
-			slog.Info("agents: gemini source configured", "root", geminiRoot)
+			slog.Info("agents: antigravity source configured", "root", antigravityRoot)
 		}
 	}
 
@@ -248,7 +248,7 @@ func sourceColor(src string) string {
 		return "blue"
 	case "codex":
 		return "green"
-	case "gemini":
+	case "antigravity":
 		return "orange"
 	default:
 		return "grey"
@@ -257,7 +257,7 @@ func sourceColor(src string) string {
 
 // modelTier maps a model name string to a display tier for the city HUD.
 // Matching is substring-based so it handles full model IDs such as
-// "claude-sonnet-4-6" or "gemini-1.5-pro".
+// "claude-sonnet-4-6" or "gemini-2.0-flash".
 func modelTier(m string) string {
 	lower := strings.ToLower(m)
 	switch {

@@ -341,7 +341,7 @@ func makeDemoAgents(rng *rand.Rand, buildings []model.Building) []model.Agent {
 	for i := 0; i < 4; i++ {
 		fromIdx := rng.Intn(len(buildings))
 		toIdx := (fromIdx + 1 + rng.Intn(len(buildings)-1)) % len(buildings)
-		family := []string{"claude", "codex", "gemini"}[i%3]
+		family := []string{"claude", "codex", "antigravity"}[i%3]
 		agents = append(agents, model.Agent{
 			ID:          fmt.Sprintf("%s:session-%04d", family, i+10),
 			Color:       colors[(i+1)%len(colors)],
@@ -392,7 +392,7 @@ func makeDemoActivities() []model.ActivityEvent {
 		{3 * time.Minute, "claude:session-0003", "Fixed race condition in watcher debounce", "#4a7a9c", "info"},
 		{5 * time.Minute, "YOU", "Dispatched 3 agents to layout work", "#b06a3a", "info"},
 		{8 * time.Minute, "CI", "Build failed: missing import path", "#dc322f", "error"},
-		{12 * time.Minute, "gemini:session-0012", "Exploring dependency graph edges", "#b06a3a", "info"},
+		{12 * time.Minute, "antigravity:session-0012", "Exploring dependency graph edges", "#b06a3a", "info"},
 	}
 
 	activities := make([]model.ActivityEvent, 0, len(entries))

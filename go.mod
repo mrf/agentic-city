@@ -6,7 +6,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/gorilla/websocket v1.5.3
-	github.com/mrf/agentwatch v0.1.2
+	github.com/mrf/agentwatch v0.2.0
 )
 
 require (
